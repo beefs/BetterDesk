@@ -392,6 +392,8 @@ start_services_with_verification() {
     
     if ! verify_service_health "betterdesk-server" "21116" 10; then
         print_error "Failed to start betterdesk-server"
+        print_info "Service state: $(systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null)"
+        print_info "Run: journalctl -u betterdesk-server -n 50 --no-pager"
         return 1
     fi
     print_success "betterdesk-server started and healthy"
@@ -422,6 +424,15 @@ start_services_with_verification() {
     
     if ! verify_service_health "betterdesk-console" "5000" 10; then
         print_warning "Web console may not be running correctly"
+        local console_state
+        console_state=$(systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null)
+        if [ "$console_state" = "failed" ]; then
+            print_error "Console service FAILED. Possible causes:"
+            print_info "  - Missing npm modules (npm install failed)"
+            print_info "  - TLS certificate issue (self-signed cert rejected)"
+            print_info "  - Port 5000 conflict"
+            print_info "Run: journalctl -u betterdesk-console -n 50 --no-pager"
+        fi
         # Don't fail for console - it's not critical
     else
         print_success "betterdesk-console started and healthy"
@@ -773,11 +784,22 @@ print_status() {
     
     # Check if using Go server (single binary) or legacy Rust (two binaries)
     if [ "${SERVER_TYPE:-}" = "go" ] || systemctl is-active --quiet betterdesk-server 2>/dev/null; then
-        if systemctl is-active --quiet betterdesk-server 2>/dev/null; then
-            echo -e "  BetterDesk Server (Go): ${GREEN}● Active${NC} (Signal + Relay + API)"
-        else
-            echo -e "  BetterDesk Server (Go): ${RED}○ Inactive${NC}"
-        fi
+        local go_state
+        go_state=$(systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null || echo "unknown")
+        case "$go_state" in
+            active)
+                echo -e "  BetterDesk Server (Go): ${GREEN}● Active${NC} (Signal + Relay + API)"
+                ;;
+            failed)
+                echo -e "  BetterDesk Server (Go): ${RED}✗ Failed${NC} (check: journalctl -u betterdesk-server -n 30)"
+                ;;
+            activating)
+                echo -e "  BetterDesk Server (Go): ${YELLOW}◌ Starting...${NC}"
+                ;;
+            *)
+                echo -e "  BetterDesk Server (Go): ${RED}○ Inactive${NC} ($go_state)"
+                ;;
+        esac
     else
         # Legacy Rust servers
         if [ "$HBBS_RUNNING" = true ]; then
@@ -793,11 +815,27 @@ print_status() {
         fi
     fi
     
-    if [ "$CONSOLE_RUNNING" = true ]; then
-        echo -e "  Web Console:   ${GREEN}● Active${NC}"
-    else
-        echo -e "  Web Console:   ${RED}○ Inactive${NC}"
-    fi
+    # Console status with state details
+    local console_state
+    console_state=$(systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null || echo "unknown")
+    case "$console_state" in
+        active)
+            echo -e "  Web Console:   ${GREEN}● Active${NC}"
+            ;;
+        failed)
+            echo -e "  Web Console:   ${RED}✗ Failed${NC} (check: journalctl -u betterdesk-console -n 30)"
+            ;;
+        activating)
+            echo -e "  Web Console:   ${YELLOW}◌ Starting...${NC}"
+            ;;
+        *)
+            if [ "$CONSOLE_RUNNING" = true ]; then
+                echo -e "  Web Console:   ${GREEN}● Active${NC}"
+            else
+                echo -e "  Web Console:   ${RED}○ Inactive${NC} ($console_state)"
+            fi
+            ;;
+    esac
     
     echo ""
 }
@@ -1295,9 +1333,15 @@ install_nodejs_console() {
     print_step "Installing npm dependencies..."
     cd "$CONSOLE_PATH"
     
-    npm install --production 2>&1 | while read line; do
-        echo -ne "\r[npm] $line                    \r"
-    done
+    # Install npm dependencies with proper error handling
+    local npm_log="/tmp/betterdesk_npm_install.log"
+    if ! npm install --production > "$npm_log" 2>&1; then
+        print_error "npm install failed! Check log:"
+        tail -20 "$npm_log"
+        print_info "Full log: $npm_log"
+        return 1
+    fi
+    rm -f "$npm_log"
     echo ""
     
     # Create data directory for databases
@@ -1578,9 +1622,27 @@ setup_services() {
     # Build TLS arguments if certificates exist
     local tls_arg=""
     local ssl_dir="$RUSTDESK_PATH/ssl"
+    local tls_is_selfsigned=false
     if [ -f "$ssl_dir/betterdesk.crt" ] && [ -f "$ssl_dir/betterdesk.key" ]; then
-        tls_arg="-tls-cert $ssl_dir/betterdesk.crt -tls-key $ssl_dir/betterdesk.key -tls-signal -tls-relay -force-https"
-        print_info "TLS: Enabled (cert found at $ssl_dir/)"
+        # Check if certificate is self-signed (issuer == subject)
+        local cert_issuer cert_subject
+        cert_issuer=$(openssl x509 -in "$ssl_dir/betterdesk.crt" -noout -issuer 2>/dev/null || echo "")
+        cert_subject=$(openssl x509 -in "$ssl_dir/betterdesk.crt" -noout -subject 2>/dev/null || echo "")
+        if [ "$cert_issuer" = "$cert_subject" ] || echo "$cert_subject" | grep -q "O=BetterDesk"; then
+            tls_is_selfsigned=true
+        fi
+        
+        # Always enable TLS on signal/relay for client encryption
+        tls_arg="-tls-cert $ssl_dir/betterdesk.crt -tls-key $ssl_dir/betterdesk.key -tls-signal -tls-relay"
+        
+        # Only add -force-https when using proper (non-self-signed) certificates
+        # Self-signed certs on fresh installs would break Node.js ↔ Go API communication
+        if [ "$tls_is_selfsigned" = false ]; then
+            tls_arg="$tls_arg -force-https"
+            print_info "TLS: Enabled with -force-https (proper certificate found)"
+        else
+            print_info "TLS: Enabled for signal/relay (self-signed cert, no -force-https)"
+        fi
     else
         print_info "TLS: Disabled (no certificate found)"
     fi
@@ -1674,6 +1736,7 @@ Environment=HBBS_API_URL=$api_scheme://localhost:$API_PORT/api
 Environment=BETTERDESK_API_URL=$api_scheme://localhost:$API_PORT/api
 Environment=SERVER_BACKEND=betterdesk
 Environment=PORT=5000
+$([ "$tls_is_selfsigned" = true ] && echo "Environment=NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt" || true)
 Restart=always
 RestartSec=5
 

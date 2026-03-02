@@ -459,7 +459,14 @@ function Print-Status {
         if ($script:SERVER_RUNNING) {
             Write-Host "  BetterDesk Server (Go): " -NoNewline; Write-Host "* Active (Signal + Relay + API)" -ForegroundColor Green
         } else {
-            Write-Host "  BetterDesk Server (Go): " -NoNewline; Write-Host "o Inactive" -ForegroundColor Red
+            # Check service state for better diagnostics
+            $svc = Get-Service -Name $script:SERVER_SERVICE -ErrorAction SilentlyContinue
+            if ($svc -and $svc.Status -eq 'Stopped') {
+                Write-Host "  BetterDesk Server (Go): " -NoNewline; Write-Host "o Stopped" -ForegroundColor Red
+                Write-Host "    Hint: Check logs at $script:RUSTDESK_PATH\logs\server_error.log" -ForegroundColor Yellow
+            } else {
+                Write-Host "  BetterDesk Server (Go): " -NoNewline; Write-Host "o Inactive" -ForegroundColor Red
+            }
         }
     } else {
         # Legacy Rust services
@@ -481,7 +488,13 @@ function Print-Status {
     if ($script:CONSOLE_RUNNING) {
         Write-Host "  Web Console:   " -NoNewline; Write-Host "* Active" -ForegroundColor Green
     } else {
-        Write-Host "  Web Console:   " -NoNewline; Write-Host "o Inactive" -ForegroundColor Red
+        $consoleSvc = Get-Service -Name $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue
+        if ($consoleSvc -and $consoleSvc.Status -eq 'Stopped') {
+            Write-Host "  Web Console:   " -NoNewline; Write-Host "o Stopped" -ForegroundColor Red
+            Write-Host "    Hint: Check logs at $script:CONSOLE_PATH\logs\console_error.log" -ForegroundColor Yellow
+        } else {
+            Write-Host "  Web Console:   " -NoNewline; Write-Host "o Inactive" -ForegroundColor Red
+        }
     }
     
     Write-Host ""
@@ -967,7 +980,14 @@ function Install-NodeJsConsole {
     Print-Step "Installing npm dependencies..."
     Push-Location $script:CONSOLE_PATH
     try {
-        npm install --production 2>&1 | ForEach-Object { Write-Host "[npm] $_" }
+        $npmOutput = npm install --production 2>&1
+        $npmOutput | ForEach-Object { Write-Host "[npm] $_" }
+        if ($LASTEXITCODE -ne 0) {
+            Print-Error "npm install failed (exit code: $LASTEXITCODE)"
+            Print-Info "Check npm output above for details"
+            Pop-Location
+            return $false
+        }
         
         # Create data directory for databases
         $dataDir = Join-Path $script:CONSOLE_PATH "data"
@@ -1368,10 +1388,28 @@ function Setup-Services {
     $certPath = Join-Path $sslDir "betterdesk.crt"
     $keyPath = Join-Path $sslDir "betterdesk.key"
     $apiScheme = "http"
+    $tlsIsSelfSigned = $false
     if ((Test-Path $certPath) -and (Test-Path $keyPath)) {
-        $serverArgs += " -tls-cert `"$certPath`" -tls-key `"$keyPath`" -tls-signal -tls-relay -force-https"
+        # Check if certificate is self-signed
+        try {
+            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($certPath)
+            $tlsIsSelfSigned = ($cert.Issuer -eq $cert.Subject) -or ($cert.Subject -like "*O=BetterDesk*")
+            $cert.Dispose()
+        } catch {
+            $tlsIsSelfSigned = $true
+        }
+        
+        # Always enable TLS on signal/relay for client encryption
+        $serverArgs += " -tls-cert `"$certPath`" -tls-key `"$keyPath`" -tls-signal -tls-relay"
         $apiScheme = "https"
-        Print-Info "TLS: Enabled (cert found at $sslDir)"
+        
+        # Only add -force-https for proper (non-self-signed) certificates
+        if (-not $tlsIsSelfSigned) {
+            $serverArgs += " -force-https"
+            Print-Info "TLS: Enabled with -force-https (proper certificate)"
+        } else {
+            Print-Info "TLS: Enabled for signal/relay (self-signed cert, no -force-https)"
+        }
     } else {
         Print-Info "TLS: Disabled (no certificate found)"
     }
@@ -1397,7 +1435,24 @@ function Setup-Services {
         & $nssm set $script:CONSOLE_SERVICE DisplayName "BetterDesk Web Console (Node.js)"
         & $nssm set $script:CONSOLE_SERVICE Description "BetterDesk Web Management Console - Node.js"
         & $nssm set $script:CONSOLE_SERVICE Start SERVICE_AUTO_START
-        & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra "NODE_ENV=production" "RUSTDESK_DIR=$script:RUSTDESK_PATH" "RUSTDESK_PATH=$script:RUSTDESK_PATH" "KEYS_PATH=$script:RUSTDESK_PATH" "DATA_DIR=$script:CONSOLE_PATH\data" "DB_PATH=$script:RUSTDESK_PATH\db_v2.sqlite3" "API_KEY_PATH=$script:RUSTDESK_PATH\.api_key" "HBBS_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api" "BETTERDESK_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api" "SERVER_BACKEND=betterdesk" "PORT=5000"
+        $envExtra = @(
+            "NODE_ENV=production",
+            "RUSTDESK_DIR=$script:RUSTDESK_PATH",
+            "RUSTDESK_PATH=$script:RUSTDESK_PATH",
+            "KEYS_PATH=$script:RUSTDESK_PATH",
+            "DATA_DIR=$script:CONSOLE_PATH\data",
+            "DB_PATH=$script:RUSTDESK_PATH\db_v2.sqlite3",
+            "API_KEY_PATH=$script:RUSTDESK_PATH\.api_key",
+            "HBBS_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
+            "BETTERDESK_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
+            "SERVER_BACKEND=betterdesk",
+            "PORT=5000"
+        )
+        # Trust self-signed cert for localhost API communication
+        if ($tlsIsSelfSigned -and (Test-Path $certPath)) {
+            $envExtra += "NODE_EXTRA_CA_CERTS=$certPath"
+        }
+        & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra $envExtra
         & $nssm set $script:CONSOLE_SERVICE AppStdout "$script:CONSOLE_PATH\logs\console.log"
         & $nssm set $script:CONSOLE_SERVICE AppStderr "$script:CONSOLE_PATH\logs\console_error.log"
         Print-Success "Created Node.js console service"
@@ -1448,9 +1503,23 @@ function Setup-ScheduledTasks {
     $sslDir = Join-Path $script:RUSTDESK_PATH "ssl"
     $certPath = Join-Path $sslDir "betterdesk.crt"
     $keyPath = Join-Path $sslDir "betterdesk.key"
+    $tlsIsSelfSigned = $false
     if ((Test-Path $certPath) -and (Test-Path $keyPath)) {
-        $serverArgs += " -tls-cert `"$certPath`" -tls-key `"$keyPath`" -tls-signal -tls-relay -force-https"
-        Print-Info "TLS: Enabled"
+        try {
+            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($certPath)
+            $tlsIsSelfSigned = ($cert.Issuer -eq $cert.Subject) -or ($cert.Subject -like "*O=BetterDesk*")
+            $cert.Dispose()
+        } catch {
+            $tlsIsSelfSigned = $true
+        }
+        
+        $serverArgs += " -tls-cert `"$certPath`" -tls-key `"$keyPath`" -tls-signal -tls-relay"
+        if (-not $tlsIsSelfSigned) {
+            $serverArgs += " -force-https"
+            Print-Info "TLS: Enabled with -force-https"
+        } else {
+            Print-Info "TLS: Enabled for signal/relay (self-signed)"
+        }
     }
     
     $serverAction = New-ScheduledTaskAction -Execute $serverExe -Argument $serverArgs -WorkingDirectory $script:RUSTDESK_PATH
