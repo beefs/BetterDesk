@@ -404,11 +404,12 @@ func (s *Server) handleBanPeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mark as banned in memory too
-	entry := s.peers.Get(id)
-	if entry != nil {
-		entry.Banned = true
-	}
+	// Remove peer from in-memory map to force immediate disconnect.
+	// The peer will be rejected on next RegisterPeer/RegisterPk attempt.
+	s.peers.Remove(id)
+
+	// Also update database status to OFFLINE since the peer is now banned
+	s.db.UpdatePeerStatus(id, "OFFLINE", "")
 
 	if s.auditLog != nil {
 		s.auditLog.Log(audit.ActionPeerBanned, s.remoteIP(r), id, map[string]string{"reason": body.Reason})

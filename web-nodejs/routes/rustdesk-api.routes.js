@@ -167,6 +167,11 @@ router.post('/api/heartbeat', (req, res) => {
         return res.json({ modified_at: new Date().toISOString() });
     }
 
+    // Reject heartbeats from banned devices
+    if (existingDevice.banned) {
+        return res.json({ error: 'BANNED' });
+    }
+
     // Parse metric data from heartbeat payload
     const cpuUsage = typeof body.cpu === 'number' ? Math.min(100, Math.max(0, body.cpu)) : 0;
     const memoryUsage = typeof body.memory === 'number' ? Math.min(100, Math.max(0, body.memory)) : 0;
@@ -227,6 +232,12 @@ router.post('/api/sysinfo', (req, res) => {
     const existingDevice = db.getDevice(deviceId);
     if (!existingDevice) {
         console.log(`[API:SYSINFO] Device not found: ${deviceId} (must register first)`);
+        return res.type('text/plain').send('ID_NOT_FOUND');
+    }
+
+    // Reject sysinfo from banned devices
+    if (existingDevice.banned) {
+        console.log(`[API:SYSINFO] Rejected sysinfo from banned device: ${deviceId}`);
         return res.type('text/plain').send('ID_NOT_FOUND');
     }
 
@@ -724,6 +735,17 @@ router.post('/api/login', async (req, res) => {
                 error: bruteCheck.reason,
                 retry_after: bruteCheck.retryAfter
             });
+        }
+
+        // Check if the connecting device is banned (clientId = device ID)
+        const sanitizedClientId = sanitizeStr(clientId || '', MAX_ID_LEN);
+        if (sanitizedClientId && isValidDeviceId(sanitizedClientId)) {
+            const device = db.getDevice(sanitizedClientId);
+            if (device && device.banned) {
+                console.log(`[API:LOGIN] Rejected login from banned device: ${sanitizedClientId}`);
+                db.logAction(null, 'api_login_banned_device', `Device: ${sanitizedClientId}, User: ${username}`, ip);
+                return res.status(403).json({ error: 'Device is banned' });
+            }
         }
 
         // Authenticate

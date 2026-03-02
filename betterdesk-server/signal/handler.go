@@ -143,6 +143,12 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 	// Check if peer exists in memory map
 	existing := s.peers.Get(id)
 	if existing != nil {
+		// Reject banned peers — do not heartbeat or respond
+		if existing.Banned {
+			log.Printf("[signal] Rejected banned peer heartbeat: %s from %s", id, raddr.IP)
+			return
+		}
+
 		// Update heartbeat
 		s.peers.UpdateHeartbeat(id, raddr, msg.Serial)
 
@@ -168,6 +174,13 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 	// NEW PEER — Dual Key System enrollment check
 	if !s.checkEnrollmentPermission(id, raddr.IP.String()) {
 		log.Printf("[signal] Rejected new peer %s from %s (enrollment policy)", id, raddr.IP)
+		return
+	}
+
+	// Check if this peer is banned in the database (e.g. removed from memory
+	// map after ban but trying to re-register)
+	if banned, _ := s.db.IsPeerBanned(id); banned {
+		log.Printf("[signal] Rejected banned peer registration: %s from %s", id, raddr.IP)
 		return
 	}
 
@@ -500,6 +513,18 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 		}
 	}
 
+	// Target is banned — report as offline to initiator
+	if target.Banned {
+		log.Printf("[signal] PunchHole (TCP): target %s is banned, rejecting", targetID)
+		return &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_PunchHoleResponse{
+				PunchHoleResponse: &pb.PunchHoleResponse{
+					Failure: pb.PunchHoleResponse_OFFLINE,
+				},
+			},
+		}
+	}
+
 	relayServer := s.getRelayServer()
 	log.Printf("[signal] PunchHole (TCP): target %s found (addr=%s, status=%s), relay=%s",
 		targetID, target.UDPAddr, target.StatusTier, relayServer)
@@ -659,6 +684,21 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		return
 	}
 
+	// Target is banned — reject relay as if offline
+	if target.Banned {
+		log.Printf("[signal] RequestRelay: target %s is banned, rejecting", targetID)
+		resp := &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_RelayResponse{
+				RelayResponse: &pb.RelayResponse{
+					RefuseReason: "Target offline",
+					RelayServer:  relayServer,
+				},
+			},
+		}
+		s.sendUDP(resp, raddr)
+		return
+	}
+
 	// Forward relay info to target peer
 	relayResp := &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_RelayResponse{
@@ -713,6 +753,23 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr)
 		log.Printf("[signal] RequestRelay (TCP): target %s offline", targetID)
 		// Target offline — try to send failure via TCP if possible.
 		// We use tcpPunchConns since that's where the initiator's TCP sink is stored.
+		relayServer := s.getRelayServer()
+		resp := &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_RelayResponse{
+				RelayResponse: &pb.RelayResponse{
+					RefuseReason: "Target offline",
+					RelayServer:  relayServer,
+				},
+			},
+		}
+		addrStr := normalizeAddrKey(raddr.String())
+		s.forwardToTCPInitiator(addrStr, resp)
+		return
+	}
+
+	// Target is banned — reject relay as if offline
+	if target.Banned {
+		log.Printf("[signal] RequestRelay (TCP): target %s is banned, rejecting", targetID)
 		relayServer := s.getRelayServer()
 		resp := &pb.RendezvousMessage{
 			Union: &pb.RendezvousMessage_RelayResponse{

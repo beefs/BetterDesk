@@ -194,6 +194,12 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 
 	existing := s.peers.Get(id)
 	if existing != nil {
+		// Reject banned peers — do not heartbeat or respond
+		if existing.Banned {
+			log.Printf("[signal] Rejected banned WS peer heartbeat: %s from %s", id, remoteAddr)
+			return nil
+		}
+
 		// Update heartbeat (WS has no real UDP addr)
 		existing.LastReg = time.Now()
 		existing.Serial = msg.Serial
@@ -210,6 +216,13 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 				},
 			},
 		}
+	}
+
+	// Check if this peer is banned in the database (e.g. removed from memory
+	// map after ban but trying to re-register via WS)
+	if banned, _ := s.db.IsPeerBanned(id); banned {
+		log.Printf("[signal] Rejected banned WS peer registration: %s from %s", id, remoteAddr)
+		return nil
 	}
 
 	// New peer via WS

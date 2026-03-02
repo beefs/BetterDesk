@@ -195,6 +195,66 @@ func TestBanUnbanEndpoint(t *testing.T) {
 	}
 }
 
+// TestBanRemovesPeerFromMap verifies that banning a peer removes it from the
+// in-memory peer map so it can no longer receive heartbeats or be targeted
+// for PunchHole/Relay operations.
+func TestBanRemovesPeerFromMap(t *testing.T) {
+	cfg := config.DefaultConfig()
+	database := testSetupDB(t)
+	defer database.Close()
+
+	database.UpsertPeer(&db.Peer{ID: "EVICT1", Status: "ONLINE"})
+	peerMap := peer.NewMap()
+	peerMap.Put(&peer.Entry{
+		ID:        "EVICT1",
+		LastReg:   time.Now(),
+		FirstSeen: time.Now(),
+		ConnType:  peer.ConnUDP,
+	})
+
+	// Verify peer is in the map before ban
+	if peerMap.Get("EVICT1") == nil {
+		t.Fatal("peer should exist in map before ban")
+	}
+
+	cfg.APIPort = 19885
+	srv := New(cfg, database, peerMap, nil, "test")
+	srv.Start(t.Context())
+	defer srv.Stop()
+	time.Sleep(100 * time.Millisecond)
+
+	// Ban the peer
+	req, _ := http.NewRequest("POST", fmt.Sprintf("http://127.0.0.1:%d/api/peers/EVICT1/ban", cfg.APIPort),
+		strings.NewReader(`{"reason":"test ban"}`))
+	req.Header.Set("Content-Type", "application/json")
+	testAuthReq(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("ban returned status %d", resp.StatusCode)
+	}
+
+	// Verify: peer should be removed from memory map
+	if peerMap.Get("EVICT1") != nil {
+		t.Error("peer should be removed from memory map after ban")
+	}
+
+	// Verify: peer should be banned in database
+	banned, _ := database.IsPeerBanned("EVICT1")
+	if !banned {
+		t.Error("peer should be banned in database")
+	}
+
+	// Verify: peer status should be OFFLINE in database
+	dbPeer, _ := database.GetPeer("EVICT1")
+	if dbPeer != nil && dbPeer.Status != "OFFLINE" {
+		t.Errorf("peer status should be OFFLINE, got %s", dbPeer.Status)
+	}
+}
+
 func TestStatusSummaryEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	database := testSetupDB(t)
