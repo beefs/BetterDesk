@@ -48,6 +48,7 @@
   - [Docker](#docker)
 - [RustDesk Client Configuration](#-rustdesk-client-configuration)
   - [Desktop Client Login](#desktop-client-login)
+  - [Enabling Pro Features](#enabling-pro-features)
 - [TLS / SSL Certificates](#-tls--ssl-certificates)
 - [Configuration Reference](#-configuration-reference)
 - [API Reference](#-api-reference)
@@ -628,6 +629,69 @@ RustDesk desktop clients can **log in** to the BetterDesk server using their use
 | "Connection refused" | Ensure port 21121 is open in the firewall and the console is running |
 | TOTP 2FA prompt | Enter the 6-digit code from your authenticator app (if 2FA is enabled for your account) |
 | "Invalid credentials" | Reset password via Web Console → Users, or run the installer with option 6 |
+
+### Enabling Pro Features
+
+Connecting the RustDesk desktop client to a BetterDesk server with the API Server field configured **automatically activates Pro-level features** — no license key required. These features are built into the standard RustDesk client but remain dormant until a compatible API server is detected.
+
+#### How to Activate
+
+1. Open the RustDesk client
+2. Go to **Settings (⚙) → Network → ID/Relay Server** (or **≡ → Network**)
+3. Fill in all four fields:
+
+| Field | Value |
+|-------|-------|
+| **ID Server** | `betterdesk.example.com` |
+| **Relay Server** | `betterdesk.example.com` (or leave empty to auto-detect) |
+| **API Server** | `http://betterdesk.example.com:21121` |
+| **Key** | Contents of `id_ed25519.pub` from the server |
+
+4. Click the **account icon** (bottom-left) and **log in** with your BetterDesk credentials
+5. Pro features activate immediately upon successful login
+
+> **Important:** The **API Server** field is the key trigger. Without it, the client operates in basic mode. The field must point to port **21121** (the RustDesk Client API), not to port 21114 (server management API).
+
+#### Features Enabled After Login
+
+| Feature | Description | Without API | With API + Login |
+|---------|-------------|:-----------:|:----------------:|
+| **Address Book Sync** | Address book stored server-side and synced across all logged-in devices | Local only | ✅ Cloud sync |
+| **Device Groups** | Organize devices into groups with access control strategies | — | ✅ |
+| **User Groups** | Group-based access policies and permissions | — | ✅ |
+| **Audit Trail** | Connection events, file transfers, and alarms logged per user | — | ✅ |
+| **Heartbeat + Sysinfo** | Client reports CPU, RAM, OS, hostname periodically to the server | — | ✅ |
+| **Device Metrics** | Live CPU/RAM/disk usage visible in the Web Console device panel | — | ✅ |
+| **Connection Audit** | Each remote session logged with start/end time, peer IDs, user identity | — | ✅ |
+| **File Transfer Audit** | Every file sent/received is recorded in the audit log | — | ✅ |
+| **Security Alarms** | Brute-force attempts, unauthorized access, and suspicious activity alerts | — | ✅ |
+| **Access Strategies** | Admin-defined rules controlling who can connect to which devices | — | ✅ |
+| **Multi-Device Login** | Same account logged in on multiple machines, all sharing one address book | — | ✅ |
+| **TOTP 2FA** | Two-factor authentication prompt when logging in (if enabled for the account) | — | ✅ |
+
+#### Verifying Pro Mode Is Active
+
+After logging in, you can confirm Pro features are working:
+
+- **Address book** — Open the address book panel; entries sync from the server. Adding a device on one machine appears on others.
+- **Account icon** — The bottom-left icon shows your username instead of a generic silhouette.
+- **Web Console** — Navigate to **Devices** in the Web Console; your client should appear with live status, sysinfo (Hardware tab), and real-time metrics (Metrics tab).
+
+#### Mass Deployment with Pro Enabled
+
+To deploy pre-configured clients with Pro features active across your organization:
+
+```bash
+# Configuration string (Base64-encoded JSON)
+rustdesk://config/eyJob3N0IjoiYmV0dGVyZGVzay5leGFtcGxlLmNvbSIsInJlbGF5IjoiYmV0dGVyZGVzay5leGFtcGxlLmNvbSIsImFwaSI6Imh0dHA6Ly9iZXR0ZXJkZXNrLmV4YW1wbGUuY29tOjIxMTIxIiwia2V5IjoiPHB1YmtleT4ifQ==
+```
+
+Or via command line:
+```bash
+rustdesk --config '{"host":"betterdesk.example.com","relay":"betterdesk.example.com","api":"http://betterdesk.example.com:21121","key":"<pubkey>"}'
+```
+
+> **Note:** Users still need to log in individually after initial configuration to activate per-user features (address book sync, audit trail, etc.).
 
 ### Ports Required on Client Side
 
