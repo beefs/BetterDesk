@@ -1890,6 +1890,27 @@ function Do-Install {
         Write-Host "  Key:           " -NoNewline; Write-Host "$($publicKey.Substring(0, [Math]::Min(20, $publicKey.Length)))..." -ForegroundColor White
     }
     Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Required ports (ensure firewall allows):" -ForegroundColor Yellow
+    Write-Host "    TCP/UDP 21116  - ID Server (client registration)"
+    Write-Host "    TCP    21115  - NAT type test"
+    Write-Host "    TCP    21117  - Relay Server"
+    Write-Host "    TCP    $($script:API_PORT)  - Server HTTP API"
+    Write-Host "    TCP    5000   - Web Console (admin panel)"
+    Write-Host "    TCP    21121  - RustDesk Client API (WAN)"
+    Write-Host ""
+    Write-Host "  RustDesk Client Configuration:" -ForegroundColor Yellow
+    Write-Host "    ID Server:    $serverIP"
+    Write-Host "    Relay Server: $serverIP"
+    if ($publicKey) {
+        Write-Host "    Key:          $publicKey"
+    }
+    Write-Host ""
+    
+    # Auto-configure firewall rules
+    Write-Host "  Configuring Windows Firewall rules..." -ForegroundColor Cyan
+    Configure-Firewall
+    Write-Host ""
     
     if (-not $script:AUTO_MODE) {
         Press-Enter
@@ -2636,18 +2657,24 @@ function Do-Diagnostics {
     Write-Host "=== Process Information ===" -ForegroundColor White
     Write-Host ""
     
-    $hbbsProc = Get-Process -Name "hbbs" -ErrorAction SilentlyContinue
-    if ($hbbsProc) {
-        Write-Host "  HBBS: PID $($hbbsProc.Id), Memory $('{0:N0}' -f ($hbbsProc.WorkingSet64/1MB)) MB" -ForegroundColor Green
+    $serverProc = Get-Process -Name "betterdesk-server" -ErrorAction SilentlyContinue
+    if ($serverProc) {
+        Write-Host "  BetterDesk Server: PID $($serverProc.Id), Memory $('{0:N0}' -f ($serverProc.WorkingSet64/1MB)) MB" -ForegroundColor Green
     } else {
-        Write-Host "  HBBS: Not running" -ForegroundColor Red
-    }
-    
-    $hbbrProc = Get-Process -Name "hbbr" -ErrorAction SilentlyContinue
-    if ($hbbrProc) {
-        Write-Host "  HBBR: PID $($hbbrProc.Id), Memory $('{0:N0}' -f ($hbbrProc.WorkingSet64/1MB)) MB" -ForegroundColor Green
-    } else {
-        Write-Host "  HBBR: Not running" -ForegroundColor Red
+        # Fallback: check legacy hbbs/hbbr processes
+        $hbbsProc = Get-Process -Name "hbbs" -ErrorAction SilentlyContinue
+        $hbbrProc = Get-Process -Name "hbbr" -ErrorAction SilentlyContinue
+        if ($hbbsProc -or $hbbrProc) {
+            if ($hbbsProc) {
+                Write-Host "  HBBS (legacy): PID $($hbbsProc.Id), Memory $('{0:N0}' -f ($hbbsProc.WorkingSet64/1MB)) MB" -ForegroundColor Yellow
+            }
+            if ($hbbrProc) {
+                Write-Host "  HBBR (legacy): PID $($hbbrProc.Id), Memory $('{0:N0}' -f ($hbbrProc.WorkingSet64/1MB)) MB" -ForegroundColor Yellow
+            }
+            Print-Warning "Legacy Rust processes detected. Consider migrating to Go server."
+        } else {
+            Write-Host "  BetterDesk Server: Not running" -ForegroundColor Red
+        }
     }
     
     Write-Host ""
@@ -2700,11 +2727,11 @@ conn.close()
     Write-Host ""
     
     $portDefs = @(
-        @{Port=21114; Proto="TCP"; Expected="hbbs"; Desc="HBBS API"},
-        @{Port=21115; Proto="TCP"; Expected="hbbs"; Desc="NAT Test"},
-        @{Port=21116; Proto="TCP"; Expected="hbbs"; Desc="ID Server (TCP)"},
-        @{Port=21116; Proto="UDP"; Expected="hbbs"; Desc="ID Server (UDP)"},
-        @{Port=21117; Proto="TCP"; Expected="hbbr"; Desc="Relay Server"},
+        @{Port=21114; Proto="TCP"; Expected="betterdesk-server"; Desc="Server API"},
+        @{Port=21115; Proto="TCP"; Expected="betterdesk-server"; Desc="NAT Test"},
+        @{Port=21116; Proto="TCP"; Expected="betterdesk-server"; Desc="ID Server (TCP)"},
+        @{Port=21116; Proto="UDP"; Expected="betterdesk-server"; Desc="ID Server (UDP)"},
+        @{Port=21117; Proto="TCP"; Expected="betterdesk-server"; Desc="Relay Server"},
         @{Port=5000;  Proto="TCP"; Expected="node"; Desc="Web Console"},
         @{Port=21121; Proto="TCP"; Expected="node"; Desc="Client API (WAN)"}
     )
@@ -2754,10 +2781,10 @@ conn.close()
     $apiUrl = "http://127.0.0.1:$($script:API_PORT)/api/server-info"
     try {
         $response = Invoke-WebRequest -Uri $apiUrl -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
-        Write-Host "  HBBS API ($($script:API_PORT)): " -NoNewline
+        Write-Host "  Server API ($($script:API_PORT)): " -NoNewline
         Write-Host "OK (HTTP $($response.StatusCode))" -ForegroundColor Green
     } catch {
-        Write-Host "  HBBS API ($($script:API_PORT)): " -NoNewline
+        Write-Host "  Server API ($($script:API_PORT)): " -NoNewline
         Write-Host "UNREACHABLE" -ForegroundColor Red
     }
     

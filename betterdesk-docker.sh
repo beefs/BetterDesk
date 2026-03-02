@@ -759,25 +759,44 @@ do_install() {
     build_images
     start_containers
     create_admin_user
-    
+
+    # Configure firewall rules
+    print_step "Configuring firewall rules..."
+    configure_firewall_rules
+
     echo ""
     print_success "Docker installation completed successfully!"
     echo ""
     
     local server_ip
-    server_ip=$(curl -s ifconfig.me 2>/dev/null || echo "YOUR_IP")
+    server_ip=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "YOUR_IP")
+    local public_key=""
+    if [ -f "$DATA_DIR/id_ed25519.pub" ]; then
+        public_key=$(cat "$DATA_DIR/id_ed25519.pub" 2>/dev/null)
+    fi
+
+    local db_type_info="SQLite"
+    if [ "$DB_TYPE" = "postgresql" ]; then
+        db_type_info="PostgreSQL (Docker container)"
+    fi
     
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║              Information about installation               ║${NC}"
+    echo -e "${CYAN}║              INSTALLATION INFO                             ║${NC}"
     echo -e "${CYAN}╠════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║  Web Panel:     ${WHITE}http://$server_ip:5000${CYAN}                   ║${NC}"
-    echo -e "${CYAN}║  Server ID:     ${WHITE}$server_ip${CYAN}                              ║${NC}"
-    echo -e "${CYAN}║  Data:          ${WHITE}$DATA_DIR${CYAN}                      ║${NC}"
-    if [ "$DB_TYPE" = "postgresql" ]; then
-    echo -e "${CYAN}║  Database:      ${WHITE}PostgreSQL (Docker container)${CYAN}          ║${NC}"
-    else
-    echo -e "${CYAN}║  Database:      ${WHITE}SQLite${CYAN}                                  ║${NC}"
+    echo -e "${CYAN}║  Web Panel:     ${WHITE}http://$server_ip:5000${NC}"
+    echo -e "${CYAN}║  Server ID:     ${WHITE}$server_ip${NC}"
+    echo -e "${CYAN}║  Database:      ${WHITE}$db_type_info${NC}"
+    echo -e "${CYAN}║  Data:          ${WHITE}$DATA_DIR${NC}"
+    if [ -n "$public_key" ]; then
+    echo -e "${CYAN}║  Key:           ${WHITE}${public_key:0:20}...${NC}"
     fi
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║  ${WHITE}Required ports: 21115-21117 (TCP+UDP), 5000, 21121${NC}"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║  ${YELLOW}RustDesk Client configuration:${NC}"
+    echo -e "${CYAN}║    ID Server:    ${WHITE}$server_ip${NC}"
+    echo -e "${CYAN}║    Relay Server: ${WHITE}$server_ip${NC}"
+    echo -e "${CYAN}║    Key:          ${WHITE}${public_key:-<generated on first start>}${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     
     press_enter
@@ -1196,6 +1215,86 @@ do_build() {
 }
 
 #===============================================================================
+# Firewall Functions
+#===============================================================================
+
+configure_firewall_rules() {
+    local required_ports="21115 21116 21117 5000 21121"
+    local created=0
+    local total=0
+
+    if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "active"; then
+        print_info "Configuring UFW firewall rules..."
+
+        for port in $required_ports; do
+            ((total++))
+            if ! ufw status 2>/dev/null | grep -qE "^${port}[/ ]"; then
+                if [ "$port" = "21116" ]; then
+                    ufw allow 21116/tcp comment "BetterDesk ID Server TCP" 2>/dev/null && ((created++))
+                    ufw allow 21116/udp comment "BetterDesk ID Server UDP" 2>/dev/null && ((created++))
+                    ((total++))
+                else
+                    ufw allow "${port}/tcp" comment "BetterDesk port ${port}" 2>/dev/null && ((created++))
+                fi
+            fi
+        done
+
+        ufw reload 2>/dev/null
+
+    elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+        print_info "Configuring firewalld rules..."
+
+        for port in $required_ports; do
+            ((total++))
+            local open_ports=$(firewall-cmd --list-ports 2>/dev/null)
+            if ! echo "$open_ports" | grep -qE "${port}/tcp"; then
+                if [ "$port" = "21116" ]; then
+                    firewall-cmd --permanent --add-port=21116/tcp 2>/dev/null && ((created++))
+                    firewall-cmd --permanent --add-port=21116/udp 2>/dev/null && ((created++))
+                    ((total++))
+                else
+                    firewall-cmd --permanent --add-port="${port}/tcp" 2>/dev/null && ((created++))
+                fi
+            fi
+        done
+
+        firewall-cmd --reload 2>/dev/null
+
+    elif command -v iptables &>/dev/null; then
+        print_info "Configuring iptables rules..."
+
+        for port in $required_ports; do
+            ((total++))
+            if ! iptables -L INPUT -n 2>/dev/null | grep -qE "dpt:${port}\b"; then
+                if [ "$port" = "21116" ]; then
+                    iptables -A INPUT -p tcp --dport 21116 -j ACCEPT 2>/dev/null && ((created++))
+                    iptables -A INPUT -p udp --dport 21116 -j ACCEPT 2>/dev/null && ((created++))
+                    ((total++))
+                else
+                    iptables -A INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null && ((created++))
+                fi
+            fi
+        done
+
+        if command -v iptables-save &>/dev/null; then
+            iptables-save > /etc/iptables/rules.v4 2>/dev/null || \
+            iptables-save > /etc/sysconfig/iptables 2>/dev/null || true
+        fi
+    else
+        print_info "No active firewall detected — no rules to configure"
+        return 0
+    fi
+
+    if [ $created -gt 0 ]; then
+        print_success "Created $created firewall rule(s)"
+    else
+        print_success "All firewall rules already configured"
+    fi
+
+    return 0
+}
+
+#===============================================================================
 # Diagnostics Functions
 #===============================================================================
 
@@ -1203,30 +1302,30 @@ do_diagnostics() {
     print_header
     echo -e "${WHITE}${BOLD}══════════ DOCKER DIAGNOSTICS ══════════${NC}"
     echo ""
-    
+
+    detect_installation
     print_status
-    
+
     echo ""
     echo -e "${WHITE}${BOLD}═══ Container logs (last 15 lines) ═══${NC}"
     echo ""
-    
+
     for container in "$SERVER_CONTAINER" "$CONSOLE_CONTAINER"; do
         echo -e "${CYAN}--- $container ---${NC}"
         docker logs --tail 15 "$container" 2>&1 || echo "Container does not exist"
         echo ""
     done
-    
+
     echo -e "${WHITE}${BOLD}═══ Resource usage ═══${NC}"
     echo ""
-    
+
     docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null | grep -E "NAME|betterdesk" || echo "No running containers found"
-    
+
     echo ""
     echo -e "${WHITE}${BOLD}═══ Database statistics ═══${NC}"
     echo ""
-    
+
     if [ "$CONSOLE_RUNNING" = true ]; then
-        # Fetch stats via the console REST API
         docker exec "$CONSOLE_CONTAINER" sh -c '
             STATS=$(curl -sf http://localhost:5000/health 2>/dev/null)
             if [ -n "$STATS" ]; then
@@ -1235,7 +1334,6 @@ do_diagnostics() {
                 echo "  Console: health check failed"
             fi
         '
-        # Fetch device stats from Go server API
         if [ "$SERVER_RUNNING" = true ]; then
             docker exec "$SERVER_CONTAINER" sh -c '
                 RESP=$(curl -sf http://localhost:21114/api/peers 2>/dev/null)
@@ -1249,11 +1347,180 @@ do_diagnostics() {
     else
         echo "  Console container is not running"
     fi
-    
+
+    # --- Port diagnostics ---
     echo ""
-    echo -e "${CYAN}Diagnostics log saved: $LOG_FILE${NC}"
-    
-    press_enter
+    echo -e "${WHITE}${BOLD}═══ Port diagnostics ═══${NC}"
+    echo ""
+
+    local port_issues=0
+    local port_defs=(
+        "21115:TCP:betterdesk-server:NAT Test"
+        "21116:TCP:betterdesk-server:ID Server (TCP)"
+        "21116:UDP:betterdesk-server:ID Server (UDP)"
+        "21117:TCP:betterdesk-server:Relay Server"
+        "5000:TCP:betterdesk-console:Web Console"
+        "21121:TCP:betterdesk-console:Client API (WAN)"
+    )
+
+    for entry in "${port_defs[@]}"; do
+        IFS=':' read -r port proto expected desc <<< "$entry"
+
+        local proc_info=""
+        if [ "$proto" = "TCP" ]; then
+            proc_info=$(ss -tlnp 2>/dev/null | grep ":${port} " | head -1)
+            [ -z "$proc_info" ] && proc_info=$(netstat -tlnp 2>/dev/null | grep ":${port} " | head -1)
+        else
+            proc_info=$(ss -ulnp 2>/dev/null | grep ":${port} " | head -1)
+            [ -z "$proc_info" ] && proc_info=$(netstat -ulnp 2>/dev/null | grep ":${port} " | head -1)
+        fi
+
+        printf "  Port %s/%s (%-18s): " "$port" "$proto" "$desc"
+
+        if [ -n "$proc_info" ]; then
+            local process_name=$(echo "$proc_info" | grep -oP 'users:\(\("\K[^"]+' 2>/dev/null || \
+                                echo "$proc_info" | awk '{print $NF}')
+            if echo "$process_name" | grep -qiE "docker|$expected"; then
+                echo -e "${GREEN}OK${NC}"
+            else
+                echo -e "${RED}CONFLICT - used by $process_name${NC}"
+                ((port_issues++))
+            fi
+        else
+            echo -e "${YELLOW}NOT LISTENING${NC}"
+        fi
+    done
+
+    if [ $port_issues -gt 0 ]; then
+        echo ""
+        print_warning "$port_issues port conflict(s) detected!"
+        echo -e "  ${YELLOW}Tip: Stop conflicting processes or change Docker port mappings${NC}"
+    fi
+
+    # --- Firewall diagnostics ---
+    echo ""
+    echo -e "${WHITE}${BOLD}═══ Firewall status ═══${NC}"
+    echo ""
+
+    local fw_type="none"
+    local missing_rules=0
+    local required_ports="21115 21116 21117 5000 21121"
+
+    if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "active"; then
+        fw_type="ufw"
+        echo -e "  Firewall: ${YELLOW}UFW (active)${NC}"
+        echo ""
+
+        for port in $required_ports; do
+            local status_line=$(ufw status 2>/dev/null | grep -E "^${port}[/ ]")
+            printf "  Port %-5s: " "$port"
+            if [ -n "$status_line" ]; then
+                echo -e "${GREEN}ALLOWED${NC}"
+            else
+                echo -e "${RED}NO RULE${NC}"
+                ((missing_rules++))
+            fi
+        done
+
+    elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+        fw_type="firewalld"
+        echo -e "  Firewall: ${YELLOW}firewalld (active)${NC}"
+        echo ""
+
+        local open_ports=$(firewall-cmd --list-ports 2>/dev/null)
+        for port in $required_ports; do
+            printf "  Port %-5s: " "$port"
+            if echo "$open_ports" | grep -qE "${port}/tcp|${port}/udp"; then
+                echo -e "${GREEN}ALLOWED${NC}"
+            else
+                echo -e "${RED}NO RULE${NC}"
+                ((missing_rules++))
+            fi
+        done
+
+    elif iptables -L INPUT -n 2>/dev/null | grep -q "ACCEPT"; then
+        fw_type="iptables"
+        echo -e "  Firewall: ${YELLOW}iptables${NC}"
+        echo ""
+
+        for port in $required_ports; do
+            printf "  Port %-5s: " "$port"
+            if iptables -L INPUT -n 2>/dev/null | grep -qE "dpt:${port}\b"; then
+                echo -e "${GREEN}ALLOWED${NC}"
+            else
+                echo -e "${RED}NO RULE / CHECK MANUALLY${NC}"
+                ((missing_rules++))
+            fi
+        done
+    else
+        echo -e "  Firewall: ${GREEN}No active firewall detected (all ports open)${NC}"
+    fi
+
+    if [ $missing_rules -gt 0 ]; then
+        echo ""
+        print_warning "$missing_rules firewall rule(s) missing!"
+        echo -e "  ${YELLOW}Use option 'F' below to auto-configure firewall${NC}"
+    fi
+
+    # --- API connectivity test ---
+    echo ""
+    echo -e "${WHITE}${BOLD}═══ API connectivity ═══${NC}"
+    echo ""
+
+    printf "  Server API (21114):  "
+    if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:21114/api/server-info" 2>/dev/null; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}UNREACHABLE${NC}"
+    fi
+
+    printf "  Web Console (5000):  "
+    if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:5000/api/health" 2>/dev/null; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}UNREACHABLE${NC}"
+    fi
+
+    # --- Diagnostics sub-menu ---
+    echo ""
+    echo -e "${WHITE}════════════════════════════════════════${NC}"
+    echo ""
+    echo "  F. Configure firewall rules (auto-create missing rules)"
+    echo "  P. Test port connectivity from outside"
+    echo "  0. Back to main menu"
+    echo ""
+    echo -n "  Select option: "
+    read -r sub_choice
+
+    case "$sub_choice" in
+        [Ff])
+            echo ""
+            configure_firewall_rules
+            press_enter
+            ;;
+        [Pp])
+            echo ""
+            echo -e "${WHITE}${BOLD}═══ External port test ═══${NC}"
+            echo ""
+            local server_ip=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "127.0.0.1")
+            print_info "Public IP: $server_ip"
+            print_info "Testing external port accessibility..."
+            echo ""
+
+            for port in 21115 21116 21117; do
+                printf "  Port %s: " "$port"
+                if timeout 3 bash -c "echo >/dev/tcp/$server_ip/$port" 2>/dev/null; then
+                    echo -e "${GREEN}REACHABLE${NC}"
+                else
+                    echo -e "${RED}BLOCKED/UNREACHABLE${NC}"
+                fi
+            done
+            press_enter
+            ;;
+        *)
+            return
+            ;;
+    esac
 }
 
 #===============================================================================
