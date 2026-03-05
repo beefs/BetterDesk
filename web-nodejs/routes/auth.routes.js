@@ -211,11 +211,11 @@ router.post('/api/auth/totp/verify', loginLimiter, async (req, res) => {
         
         if (recoveryCode) {
             // Try recovery code
-            verified = authService.verifyRecoveryCode(pendingUserId, recoveryCode);
+            verified = await authService.verifyRecoveryCode(pendingUserId, recoveryCode);
             method = 'recovery';
         } else if (code) {
             // Try TOTP code
-            verified = authService.verifyTotpCode(pendingUserId, code);
+            verified = await authService.verifyTotpCode(pendingUserId, code);
         }
         
         if (!verified) {
@@ -266,7 +266,7 @@ router.post('/api/auth/totp/verify', loginLimiter, async (req, res) => {
 router.post('/api/auth/totp/setup', requireAuth, async (req, res) => {
     try {
         // Check if already enabled
-        if (authService.isTotpEnabled(req.session.userId)) {
+        if (await authService.isTotpEnabled(req.session.userId)) {
             return res.status(400).json({
                 success: false,
                 error: req.t('auth.totp_already_enabled')
@@ -311,7 +311,7 @@ router.post('/api/auth/totp/enable', requireAuth, async (req, res) => {
             });
         }
         
-        const result = authService.verifyAndEnableTotp(req.session.userId, code);
+        const result = await authService.verifyAndEnableTotp(req.session.userId, code);
         
         if (!result.success) {
             return res.status(400).json({
@@ -350,7 +350,7 @@ router.post('/api/auth/totp/disable', requireAuth, async (req, res) => {
             });
         }
         
-        // Verify password before disabling
+        // Verify password before disabling (supports both bcrypt and PBKDF2 hashes)
         const user = await db.getUserById(req.session.userId);
         if (!user) {
             return res.status(404).json({
@@ -359,8 +359,7 @@ router.post('/api/auth/totp/disable', requireAuth, async (req, res) => {
             });
         }
         
-        const bcrypt = require('bcrypt');
-        const valid = bcrypt.compareSync(password, user.password_hash);
+        const valid = await authService.verifyPassword(password, user.password_hash);
         if (!valid) {
             return res.status(401).json({
                 success: false,
@@ -368,7 +367,7 @@ router.post('/api/auth/totp/disable', requireAuth, async (req, res) => {
             });
         }
         
-        authService.disableTotp(req.session.userId);
+        await authService.disableTotp(req.session.userId);
         
         // Log action
         await db.logAction(req.session.userId, 'totp_disabled', '2FA disabled', req.ip);
@@ -386,9 +385,14 @@ router.post('/api/auth/totp/disable', requireAuth, async (req, res) => {
 /**
  * GET /api/auth/totp/status - Check if TOTP is enabled for current user
  */
-router.get('/api/auth/totp/status', requireAuth, (req, res) => {
-    const enabled = authService.isTotpEnabled(req.session.userId);
-    res.json({ success: true, enabled });
+router.get('/api/auth/totp/status', requireAuth, async (req, res) => {
+    try {
+        const enabled = await authService.isTotpEnabled(req.session.userId);
+        res.json({ success: true, enabled });
+    } catch (err) {
+        console.error('TOTP status error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
 });
 
 module.exports = router;

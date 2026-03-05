@@ -738,7 +738,23 @@ print_status() {
     echo ""
     echo -e "  RustDesk:     ${CYAN}$RUSTDESK_PATH${NC}"
     echo -e "  Console:      ${CYAN}$CONSOLE_PATH${NC}"
-    echo -e "  Database:     ${CYAN}$DB_PATH${NC}"
+    
+    # Show database type and path/URI
+    local diag_db_type="sqlite"
+    if [ -f "$CONSOLE_PATH/.env" ]; then
+        diag_db_type=$(grep -m1 '^DB_TYPE=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
+        diag_db_type="${diag_db_type:-sqlite}"
+    fi
+    if [ "$diag_db_type" = "postgres" ]; then
+        local diag_pg_uri
+        diag_pg_uri=$(grep -m1 '^DATABASE_URL=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
+        # Mask password in URI for display
+        local diag_pg_display
+        diag_pg_display=$(echo "$diag_pg_uri" | sed 's|://[^:]*:[^@]*@|://***:***@|')
+        echo -e "  Database:     ${CYAN}PostgreSQL${NC} ($diag_pg_display)"
+    else
+        echo -e "  Database:     ${CYAN}SQLite${NC} ($DB_PATH)"
+    fi
     echo ""
     
     echo -e "${WHITE}${BOLD}═══ Installation Status ═══${NC}"
@@ -3010,11 +3026,33 @@ do_diagnostics() {
                             sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peer WHERE status = 1 AND is_deleted = 0" 2>/dev/null || echo "0")
         local user_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
         
+        echo -e "  Database type:     ${CYAN}SQLite${NC}"
         echo "  Devices:           $device_count"
         echo "  Online:            $online_count"
         echo "  Users:             $user_count"
     else
-        echo "  Database does not exist"
+        # Check for PostgreSQL
+        local diag_db_type="sqlite"
+        local diag_pg_uri=""
+        if [ -f "$CONSOLE_PATH/.env" ]; then
+            diag_db_type=$(grep -m1 '^DB_TYPE=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
+            diag_db_type="${diag_db_type:-sqlite}"
+            diag_pg_uri=$(grep -m1 '^DATABASE_URL=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
+        fi
+        
+        if [ "$diag_db_type" = "postgres" ] && [ -n "$diag_pg_uri" ]; then
+            echo -e "  Database type:     ${CYAN}PostgreSQL${NC}"
+            if command -v psql &>/dev/null; then
+                local device_count=$(PGCONNECT_TIMEOUT=3 psql "$diag_pg_uri" -tAc "SELECT COUNT(*) FROM peers WHERE is_deleted = FALSE" 2>/dev/null || echo "0")
+                local user_count=$(PGCONNECT_TIMEOUT=3 psql "$diag_pg_uri" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
+                echo "  Devices:           ${device_count:-0}"
+                echo "  Users:             ${user_count:-0}"
+            else
+                echo -e "  ${YELLOW}Install psql to see database statistics${NC}"
+            fi
+        else
+            echo -e "  ${YELLOW}SQLite database file not found: $DB_PATH${NC}"
+        fi
     fi
     
     # --- Port diagnostics ---
@@ -3024,11 +3062,11 @@ do_diagnostics() {
     
     local port_issues=0
     local port_defs=(
-        "21114:TCP:betterdesk-server|hbbs:API Server"
-        "21115:TCP:betterdesk-server|hbbs:NAT Test"
-        "21116:TCP:betterdesk-server|hbbs:ID Server (TCP)"
-        "21116:UDP:betterdesk-server|hbbs:ID Server (UDP)"
-        "21117:TCP:betterdesk-server|hbbr:Relay Server"
+        "21114:TCP:betterdesk-serv|betterdesk-server|hbbs:API Server"
+        "21115:TCP:betterdesk-serv|betterdesk-server|hbbs:NAT Test"
+        "21116:TCP:betterdesk-serv|betterdesk-server|hbbs:ID Server (TCP)"
+        "21116:UDP:betterdesk-serv|betterdesk-server|hbbs:ID Server (UDP)"
+        "21117:TCP:betterdesk-serv|betterdesk-server|hbbr:Relay Server"
         "5000:TCP:node:Web Console"
         "21121:TCP:node:Client API (WAN)"
     )
@@ -3145,20 +3183,64 @@ do_diagnostics() {
     echo -e "${WHITE}${BOLD}═══ API connectivity ═══${NC}"
     echo ""
     
-    local api_port="${API_PORT:-21120}"
+    local api_port="${API_PORT:-21114}"
     
-    printf "  HBBS API (%s):     " "$api_port"
-    if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:${api_port}/api/server-info" 2>/dev/null; then
+    # Detect if Go server uses TLS (check systemd service for tls-cert arg)
+    local api_use_tls=false
+    local api_scheme="http"
+    if systemctl cat betterdesk-server.service 2>/dev/null | grep -q '\-tls-cert'; then
+        api_use_tls=true
+        api_scheme="https"
+    fi
+    
+    printf "  Go Server API (%s %s):  " "$api_scheme" "$api_port"
+    if [ "$api_use_tls" = true ]; then
+        if curl -skfo /dev/null --connect-timeout 3 "https://127.0.0.1:${api_port}/api/health" 2>/dev/null; then
+            echo -e "${GREEN}OK (HTTPS)${NC}"
+        else
+            # Fallback: try HTTP in case TLS is only on signal/relay
+            if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:${api_port}/api/health" 2>/dev/null; then
+                echo -e "${GREEN}OK (HTTP)${NC}"
+                echo -e "  ${YELLOW}⚠ Note: Go server has TLS cert but API responds on HTTP${NC}"
+            else
+                echo -e "${RED}UNREACHABLE${NC}"
+                echo -e "  ${YELLOW}Tip: Check betterdesk-server logs: journalctl -u betterdesk-server -n 20${NC}"
+            fi
+        fi
+    else
+        if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:${api_port}/api/health" 2>/dev/null; then
+            echo -e "${GREEN}OK${NC}"
+        else
+            echo -e "${RED}UNREACHABLE${NC}"
+        fi
+    fi
+    
+    printf "  Web Console (5000):    "
+    if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:5000/api/health" 2>/dev/null; then
         echo -e "${GREEN}OK${NC}"
     else
         echo -e "${RED}UNREACHABLE${NC}"
     fi
     
-    printf "  Web Console (5000):  "
-    if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:5000/api/health" 2>/dev/null; then
-        echo -e "${GREEN}OK${NC}"
-    else
-        echo -e "${RED}UNREACHABLE${NC}"
+    # --- TLS mismatch detection ---
+    if [ "$api_use_tls" = true ]; then
+        local console_api_url=""
+        # Check what URL the console is configured to use
+        if [ -f /etc/systemd/system/betterdesk-console.service ]; then
+            console_api_url=$(grep 'BETTERDESK_API_URL=' /etc/systemd/system/betterdesk-console.service 2>/dev/null | tail -1 | sed 's/.*BETTERDESK_API_URL=//')
+        fi
+        if [ -z "$console_api_url" ] && [ -f "$CONSOLE_PATH/.env" ]; then
+            console_api_url=$(grep -m1 '^BETTERDESK_API_URL=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
+        fi
+        
+        if [ -n "$console_api_url" ] && echo "$console_api_url" | grep -q '^http://'; then
+            echo ""
+            print_warning "TLS MISMATCH DETECTED!"
+            echo -e "  ${YELLOW}Go server has TLS enabled but console is configured with HTTP:${NC}"
+            echo -e "  ${YELLOW}  Console URL: $console_api_url${NC}"
+            echo -e "  ${YELLOW}  Expected:    https://localhost:$api_port/api${NC}"
+            echo -e "  ${YELLOW}  Fix: Re-run installation (option 1) or update .env and systemd service${NC}"
+        fi
     fi
     
     # --- Diagnostics sub-menu ---

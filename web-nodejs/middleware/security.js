@@ -61,8 +61,8 @@ function customSecurityHeaders(req, res, next) {
     // Referrer policy
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     
-    // Permissions policy
-    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    // Permissions policy (includes browsing-topics to suppress Chrome warnings)
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), browsing-topics=()');
     
     next();
 }
