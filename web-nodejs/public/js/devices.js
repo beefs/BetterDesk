@@ -179,8 +179,8 @@
                 <td data-column="hostname">${Utils.escapeHtml(device.hostname || device.note || '-')}</td>
                 <td data-column="platform">
                     <div class="platform-icon">
-                        <span class="material-icons">${Utils.getPlatformIcon(device.platform)}</span>
-                        <span>${Utils.escapeHtml(device.platform || '-')}</span>
+                        <span class="material-icons">${Utils.getPlatformIcon(device.platform || device.os)}</span>
+                        <span>${Utils.escapeHtml(device.platform || device.os || '-')}</span>
                     </div>
                 </td>
                 <td data-column="last_online">

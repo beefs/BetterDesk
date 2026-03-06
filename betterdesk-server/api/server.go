@@ -347,6 +347,7 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 		*db.Peer
 		LiveOnline bool        `json:"live_online"`
 		LiveStatus peer.Status `json:"live_status"`
+		Platform   string      `json:"platform"`
 	}
 
 	result := make([]peerResponse, len(peers))
@@ -360,6 +361,7 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 			Peer:       p,
 			LiveOnline: liveOnline,
 			LiveStatus: liveStatus,
+			Platform:   p.OS,
 		}
 	}
 
@@ -389,12 +391,14 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 		*db.Peer
 		LiveOnline bool        `json:"live_online"`
 		LiveStatus peer.Status `json:"live_status"`
+		Platform   string      `json:"platform"`
 	}
 
 	writeJSON(w, http.StatusOK, singlePeerResponse{
 		Peer:       p,
 		LiveOnline: liveOnline,
 		LiveStatus: liveStatus,
+		Platform:   p.OS,
 	})
 }
 

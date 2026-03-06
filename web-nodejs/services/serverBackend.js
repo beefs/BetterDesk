@@ -87,6 +87,25 @@ async function getAllDevices(filters = {}) {
             console.error('Failed to overlay folder assignments:', err.message);
         }
 
+        // Overlay sysinfo from auth.db (Node.js receives richer data from RustDesk Client API)
+        try {
+            const allSysinfo = await db.getAllPeerSysinfo();
+            const sysinfoMap = {};
+            for (const si of allSysinfo) {
+                sysinfoMap[si.peer_id] = si;
+            }
+            for (const peer of peers) {
+                const si = sysinfoMap[peer.id];
+                if (!si) continue;
+                if (!peer.hostname && si.hostname) peer.hostname = si.hostname;
+                if ((!peer.platform || peer.platform === '-') && si.platform) peer.platform = si.platform;
+                if ((!peer.os || peer.os === '-') && si.os_full) peer.os = si.os_full;
+                if (!peer.version && si.version) peer.version = si.version;
+            }
+        } catch (err) {
+            console.error('Failed to overlay sysinfo:', err.message);
+        }
+
         // Apply client-side filtering (the Go API may not support all filter params)
         if (filters.search) {
             const s = filters.search.toLowerCase();

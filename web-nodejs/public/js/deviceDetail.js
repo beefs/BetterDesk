@@ -123,12 +123,13 @@ const DeviceDetail = (function () {
 
     function _headerHTML() {
         const d = device;
-        const platformLabel = d.platform || '-';
-        const platformIcon = Utils.getPlatformIcon(d.platform);
-        const statusClass = d.banned ? 'banned' : (d.status_tier || (d.online ? 'online' : 'offline'));
+        const platformLabel = d.platform || d.os || '-';
+        const platformIcon = Utils.getPlatformIcon(d.platform || d.os);
+        const statusRaw = (d.status_tier || (d.online ? 'online' : 'offline')).toLowerCase();
+        const statusClass = d.banned ? 'banned' : statusRaw;
         const statusLabel = d.banned
             ? _('status.banned')
-            : (_('status.' + (d.status_tier || (d.online ? 'online' : 'offline'))));
+            : (_('status.' + statusRaw));
 
         return `
         <div class="device-panel-header">
@@ -234,7 +235,7 @@ const DeviceDetail = (function () {
                 ${_infoRow(_('devices.hostname'), Utils.escapeHtml(d.hostname || d.note || '-'))}
                 ${_infoRow(_('devices.username'), Utils.escapeHtml(d.username || '-'))}
                 ${d.uuid ? _infoRow('UUID', `<span class="mono">${Utils.escapeHtml(d.uuid)}</span>`) : ''}
-                ${_infoRow(_('devices.platform'), Utils.escapeHtml(d.platform || (d.sysinfo && d.sysinfo.platform) || '-'))}
+                ${_infoRow(_('devices.platform'), Utils.escapeHtml(d.platform || d.os || (d.sysinfo && d.sysinfo.platform) || '-'))}
                 ${d.sysinfo && d.sysinfo.version ? _infoRow(_('device_detail.version'), Utils.escapeHtml(d.sysinfo.version)) : ''}
             </div>
         </div>`;
@@ -257,8 +258,8 @@ const DeviceDetail = (function () {
             <div class="device-panel-info-grid">
                 ${_infoRow(_('devices.first_seen'), Utils.formatDate(d.created_at))}
                 ${_infoRow(_('devices.last_seen'), _lastSeenValue(d.last_online))}
-                ${d.status_tier && d.status_tier !== 'online' && d.status_tier !== 'offline'
-                    ? _infoRow(_('device_detail.status_tier'), _statusTierBadge(d.status_tier))
+                ${d.status_tier && d.status_tier.toLowerCase() !== 'online' && d.status_tier.toLowerCase() !== 'offline'
+                    ? _infoRow(_('device_detail.status_tier'), _statusTierBadge(d.status_tier.toLowerCase()))
                     : ''}
             </div>
         </div>`;
@@ -675,7 +676,7 @@ const DeviceDetail = (function () {
     }
 
     function _statusTierBadge(tier) {
-        const cls = tier || 'offline';
+        const cls = (tier || 'offline').toLowerCase();
         const label = _('status.' + cls) || cls;
         return `<span class="device-panel-status-badge ${cls}"><span class="status-dot"></span>${label}</span>`;
     }
@@ -933,10 +934,11 @@ const DeviceDetail = (function () {
                     // Only re-render header status (minimal update, avoid losing form state)
                     const statusBar = overlayEl.querySelector('.device-panel-status-bar');
                     if (statusBar) {
-                        const statusClass = device.banned ? 'banned' : (device.status_tier || (device.online ? 'online' : 'offline'));
+                        const statusRaw2 = (device.status_tier || (device.online ? 'online' : 'offline')).toLowerCase();
+                        const statusClass = device.banned ? 'banned' : statusRaw2;
                         const statusLabel = device.banned
                             ? _('status.banned')
-                            : (_('status.' + (device.status_tier || (device.online ? 'online' : 'offline'))));
+                            : (_('status.' + statusRaw2));
                         const badge = statusBar.querySelector('.device-panel-status-badge');
                         if (badge) {
                             badge.className = 'device-panel-status-badge ' + statusClass;
