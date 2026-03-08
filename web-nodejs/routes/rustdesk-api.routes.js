@@ -474,12 +474,14 @@ router.get('/api/ab/tags', async (req, res) => {
 
 /**
  * GET /api/users
- * List users — return current user only.
+ * List users — return current user only (for RustDesk client with Bearer token).
+ * Falls through to panel routes if no Bearer token but session exists.
  */
-router.get('/api/users', (req, res) => {
+router.get('/api/users', (req, res, next) => {
     const token = extractBearerToken(req);
+    // If no Bearer token, fallthrough to panel routes (may have session cookie)
     if (!token) {
-        return res.status(401).json({ error: 'Authorization required' });
+        return next('route');
     }
     const user = authService.validateAccessToken(token);
     if (!user) {
@@ -502,11 +504,17 @@ router.get('/api/users', (req, res) => {
  * GET /api/peers
  * List peers/devices with sysinfo, metrics, and online status.
  * Returns RustDesk-compatible peer data merged with sysinfo.
+ * Falls through to panel routes if no Bearer token but session exists.
  */
-router.get('/api/peers', async (req, res) => {
-    const user = authenticateRequest(req);
+router.get('/api/peers', async (req, res, next) => {
+    const token = extractBearerToken(req);
+    // If no Bearer token, fallthrough to panel routes (may have session cookie)
+    if (!token) {
+        return next('route');
+    }
+    const user = authService.validateAccessToken(token);
     if (!user) {
-        return res.status(401).json({ error: 'Authorization required' });
+        return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
     try {

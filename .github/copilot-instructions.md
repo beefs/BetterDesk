@@ -418,6 +418,10 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 67. [x] **Auth middleware updated**: `/api/heartbeat`, `/api/sysinfo`, `/api/sysinfo_ver` added to public endpoint list (no auth required — client may not be logged in).
 68. [x] **Audit logging**: Added `ActionSysinfoUpdated` and `ActionSysinfoError` audit actions with full details (hostname, os, version).
 
+#### Node.js Console — Route Conflict Fix (Phase 10) ✅ COMPLETED 2026-03-08
+69. [x] **Users page 401 error (Issue #42)**: Route conflict in `rustdesk-api.routes.js`: `GET /api/users` handler for RustDesk desktop client (Bearer token auth) was intercepting panel requests (session cookie auth), returning 401. Fixed by detecting absent Bearer token and calling `next('route')` to allow panel routes to handle the request.
+70. [x] **Peers route conflict (Issue #42)**: Same fix applied to `GET /api/peers` — fallthrough to panel routes when no Bearer token present.
+
 ---
 
 ## 🔄 System Statusu v3.0
@@ -578,6 +582,7 @@ Pełna dokumentacja budowania: [BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
 15. ~~**Client login `_Map<String, dynamic>` error**~~ ✅ ROZWIĄZANE - Added RustDesk-compatible `/api/login` endpoint to Go server `client_api_handlers.go` — Phase 8
 16. ~~**GetPeer missing live status**~~ ✅ ROZWIĄZANE - `handleGetPeer` now returns `live_online` + `live_status` from memory map — Phase 8
 17. ~~**Hostname/Platform columns empty (Issue #37)**~~ ✅ ROZWIĄZANE - Go server was missing `/api/heartbeat`, `/api/sysinfo`, `/api/sysinfo_ver` endpoints. RustDesk client sends hostname/os/version via HTTP API to signal_port-2 (21114), but Go server had no handlers. Added all 3 endpoints + `UpdatePeerSysinfo` DB method — Phase 9
+18. ~~**Users page 401 error (Issue #42)**~~ ✅ ROZWIĄZANE - Route conflict in `rustdesk-api.routes.js`: `/api/users` and `/api/peers` handlers were blocking panel requests (expecting Bearer token). Fixed by adding `next('route')` fallthrough when no Bearer token present, allowing session-based panel requests to reach `users.routes.js` — Phase 10
 
 ---
 
@@ -667,4 +672,4 @@ All code changes MUST include a security review as part of the implementation pr
 
 ---
 
-*Ostatnia aktualizacja: 2026-03-05 (Sysinfo/Heartbeat Endpoints — Phase 9) przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-03-08 (Users page 401 fix — Phase 10) przez GitHub Copilot*
