@@ -115,33 +115,83 @@ sudo apt install nginx certbot python3-certbot-nginx
 Create `/etc/nginx/sites-available/betterdesk`:
 
 ```nginx
+# Upstream map for WebSocket connection upgrade
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# BetterDesk Console
 server {
     listen 80;
     server_name console.yourdomain.com;
 
-    location / {
+    # Increase client body size for file uploads
+    client_max_body_size 100M;
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # WebSocket endpoints (Web Remote Client, Chat, Relay)
+    # These require special handling for long-lived connections
+    # ─────────────────────────────────────────────────────────────────────────
+    location ~ ^/ws/ {
         proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+
+        # WebSocket upgrade headers
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        # Preserve client info
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # WebSocket support (for future remote desktop client)
+        # Disable buffering for real-time streaming (JPEG frames)
+        proxy_buffering off;
+        proxy_cache off;
+
+        # Long timeouts for persistent WebSocket connections
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+
+        # Keepalive
+        proxy_socket_keepalive on;
+    }
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Standard HTTP requests (dashboard, API, static files)
+    # ─────────────────────────────────────────────────────────────────────────
+    location / {
+        proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Fallback WebSocket support for non-/ws/ paths (legacy)
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 86400s;
     }
 }
 ```
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/betterdesk /etc/nginx/sites-enabled/
+sudo nginx -t  # Validate configuration
 sudo certbot --nginx -d console.yourdomain.com
 sudo systemctl restart nginx
 ```
 
 With Nginx reverse proxy, leave `HTTPS_ENABLED=false` in `.env`.
+
+**Important for Web Remote Client:**
+- The `proxy_buffering off` directive is critical for real-time JPEG streaming
+- Long timeouts (86400s) prevent WebSocket disconnections during idle periods
+- The `map` directive ensures proper WebSocket upgrade handling
 
 ---
 
@@ -213,3 +263,72 @@ If you access the console via HTTPS but see mixed content warnings, ensure `HTTP
 ### Behind a Reverse Proxy
 
 When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the proxy handle TLS. The proxy should set `X-Forwarded-Proto: https` so the application knows the original protocol. Express trusts proxy headers when configured—this is handled automatically.
+
+### Web Remote Client Not Working Through Nginx
+
+If the web remote desktop client connects but shows "requesting connection" indefinitely:
+
+1. **Verify WebSocket upgrade is working:**
+   ```bash
+   # Test WebSocket endpoint
+   curl -i -N \
+     -H "Connection: Upgrade" \
+     -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Version: 13" \
+     -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" \
+     https://console.yourdomain.com/ws/bd-signal
+   # Should return "HTTP/1.1 101 Switching Protocols"
+   ```
+
+2. **Check nginx `proxy_buffering` is disabled** for `/ws/` paths (see config above)
+
+3. **Verify timeouts are long enough** — `proxy_read_timeout 86400s`
+
+4. **Check nginx error logs:**
+   ```bash
+   sudo tail -f /var/log/nginx/error.log
+   ```
+
+5. **Ensure the desktop agent (BetterDesk Client) can reach the server.** The agent must connect to `/ws/remote-agent/<device_id>` before the browser viewer can stream.
+
+### BetterDesk Server (Go) WebSocket Ports
+
+The BetterDesk Go server also exposes WebSocket endpoints for RustDesk protocol:
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 21118 | WS/WSS | Signal WebSocket (RustDesk client signaling) |
+| 21119 | WS/WSS | Relay WebSocket (RustDesk client data relay) |
+
+These ports are used by the **native RustDesk desktop client** (not the web console). If you need to proxy them through nginx:
+
+```nginx
+# Optional: Proxy RustDesk native client WebSocket (if needed)
+server {
+    listen 21118;
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:21118;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 86400s;
+    }
+}
+
+server {
+    listen 21119;
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:21119;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 86400s;
+    }
+}
+```
+
+> **Note:** For most deployments, you do NOT need to proxy ports 21118/21119 — let clients connect directly to the Go server.
