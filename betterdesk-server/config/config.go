@@ -69,7 +69,7 @@ type Config struct {
 	InitAdminPass   string // Initial admin password (auto-generated if empty)
 
 	// WebSocket security (M3)
-	AllowedWSOrigins string // Comma-separated allowed WebSocket origins (empty = allow all)
+	AllowedWSOrigins    string // Comma-separated allowed WebSocket origins (empty = allow all)
 	APIAllowedWSOrigins string // Comma-separated allowed WebSocket origins for HTTP API events endpoint
 
 	// TLS for signal/relay (Phase 3)
