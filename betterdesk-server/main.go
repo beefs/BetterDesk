@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	cryptoRand "crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -378,9 +380,36 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 		}
 	}
 
+	// 4. Check database server_config table (may have been set previously)
 	if apiKey == "" {
-		log.Printf("WARN: No API key found (no API_KEY env var, no .api_key file in key/db directory). Console→Server auth will fail.")
-		return
+		if existing, _ := database.GetConfig("api_key"); existing != "" {
+			apiKey = existing
+			source = "database server_config"
+		}
+	}
+
+	// 5. Auto-generate if nothing found anywhere
+	if apiKey == "" {
+		b := make([]byte, 32)
+		if _, err := cryptoRand.Read(b); err != nil {
+			log.Printf("WARN: Failed to generate API key: %v. Console→Server auth will fail.", err)
+			return
+		}
+		apiKey = hex.EncodeToString(b)
+		source = "auto-generated"
+
+		// Write to key file directory so Node.js console can read it
+		keyDir := filepath.Dir(cfg.KeyFile)
+		if keyDir == "" || keyDir == "." {
+			keyDir = "."
+		}
+		apiKeyFile := filepath.Join(keyDir, ".api_key")
+		if err := os.WriteFile(apiKeyFile, []byte(apiKey+"\n"), 0600); err != nil {
+			log.Printf("WARN: Auto-generated API key but failed to write %s: %v", apiKeyFile, err)
+			// Still try to store in DB even if file write fails
+		} else {
+			log.Printf("Auto-generated API key written to %s", apiKeyFile)
+		}
 	}
 
 	// Sync to database server_config table

@@ -450,6 +450,12 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 89. [x] **Credentials persistence hardening**: Plaintext `.admin_credentials` persistence is now opt-in via `STORE_ADMIN_CREDENTIALS=true` (default secure behavior: do not persist credentials files).
 90. [x] **Dependency vulnerability fixes**: Updated Node override for `tar` in `web-nodejs/package.json`; `npm audit --omit=dev` now reports 0 vulnerabilities. Added Go toolchain hardening (`go.mod` toolchain + installer checks) to avoid vulnerable Go 1.26.0 stdlib.
 
+#### Docker — API Key Auto-Generation (Phase 16) ✅ COMPLETED 2026-03-15
+91. [x] **Root cause (Issue #59)**: Docker single-container never created `.api_key` file. Dashboard used public `/api/server/stats` (showed correct count), Devices page used protected `/api/peers` (401 → empty list). Node.js sent empty `X-API-Key` header because file didn't exist in volume.
+92. [x] **Go server fix (`main.go`)**: `loadAPIKey()` now has 5-step lookup: (1) `API_KEY` env var, (2) `.api_key` in key dir, (3) `.api_key` in DB dir, (4) NEW: `server_config` table, (5) NEW: auto-generate 32-byte hex key → write to `.api_key` file + sync to DB.
+93. [x] **Docker entrypoint fix (`docker/entrypoint.sh`)**: Generates API key before supervisord starts if `.api_key` file missing. Uses `openssl rand -hex 32` with `/dev/urandom` fallback. Also persists `API_KEY` env var to file if provided.
+94. [x] **Node.js resilience (`betterdeskApi.js`)**: Axios 401 interceptor re-reads `.api_key` from disk once on auth failure. Handles race condition where Go server generates key after Node.js cached empty value at startup.
+
 ---
 
 ## 🔄 System Statusu v3.0
@@ -617,6 +623,7 @@ Pełna dokumentacja budowania: [BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
 22. ~~**SELinux volume mount issues (Issue #31)**~~ ✅ ROZWIĄZANE - Added SELinux documentation to DOCKER_TROUBLESHOOTING.md with 4 solutions (named volumes, `:z` flag, chcon, setenforce) — Phase 12
 23. ~~**Docker single-container port 5000 conflict (Issue #56)**~~ ✅ ROZWIĄZANE - Go server `config.LoadEnv()` read generic `PORT=5000` (meant for Node.js console) and set signal port to 5000 instead of 21116, causing EADDRINUSE race condition. Fixed by adding `SIGNAL_PORT` env var with priority over `PORT` in `config.go`, setting `SIGNAL_PORT=21116` in `supervisord.conf` and `entrypoint.sh`, adding `ENV SIGNAL_PORT=21116` to `Dockerfile` — Phase 13
 24. ~~**`get_public_ip: command not found` (Issue #58)**~~ ✅ ROZWIĄZANE - Diagnostics function called undefined `get_public_ip` at line 3348. Created reusable `get_public_ip()` function (IPv4-first) in all 3 scripts, replaced all inline curl patterns. Added private IP warning + `RELAY_SERVERS` env var override in `setup_services()`. Go server `GetRelayServers()` now auto-appends relay port when missing — Phase 14
+25. ~~**Docker: Devices page 0 while Dashboard shows count (Issue #59)**~~ ✅ ROZWIĄZANE - Docker single-container never created `.api_key` file. Dashboard used public `/api/server/stats` (correct), Devices used protected `/api/peers` (401 → empty). Go server `loadAPIKey()` now auto-generates key on first run, Docker entrypoint also generates as safety net, Node.js `betterdeskApi.js` has 401-interceptor to reload key from file — Phase 16
 
 ---
 
@@ -706,4 +713,4 @@ All code changes MUST include a security review as part of the implementation pr
 
 ---
 
-*Ostatnia aktualizacja: 2026-03-15 (Security hardening API + installers — Phase 15) przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-03-15 (Docker API key auto-generation — Phase 16) przez GitHub Copilot*

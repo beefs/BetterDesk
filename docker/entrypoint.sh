@@ -66,6 +66,26 @@ fi
 # Ensure Go server uses correct signal port (not NODE.js PORT)
 export SIGNAL_PORT="${SIGNAL_PORT:-21116}"
 
+# Ensure API key exists (shared between Go server and Node.js console)
+API_KEY_FILE="/opt/rustdesk/.api_key"
+if [ -z "${API_KEY:-}" ] && [ ! -f "$API_KEY_FILE" ]; then
+    # Auto-generate a 32-byte hex API key
+    if command -v openssl >/dev/null 2>&1; then
+        API_KEY=$(openssl rand -hex 32)
+    else
+        API_KEY=$(cat /dev/urandom | head -c 32 | od -An -tx1 | tr -d ' \n')
+    fi
+    echo "$API_KEY" > "$API_KEY_FILE"
+    chmod 600 "$API_KEY_FILE"
+    chown betterdesk:betterdesk "$API_KEY_FILE" 2>/dev/null || true
+    echo "Auto-generated API key → $API_KEY_FILE"
+elif [ -n "${API_KEY:-}" ] && [ ! -f "$API_KEY_FILE" ]; then
+    echo "$API_KEY" > "$API_KEY_FILE"
+    chmod 600 "$API_KEY_FILE"
+    chown betterdesk:betterdesk "$API_KEY_FILE" 2>/dev/null || true
+    echo "API key from env → $API_KEY_FILE"
+fi
+
 echo ""
 echo "Starting services via supervisord..."
 echo "  Web Console:  http://localhost:${PORT:-5000}"

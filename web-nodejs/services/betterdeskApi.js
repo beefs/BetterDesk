@@ -9,6 +9,7 @@
 
 const axios = require('axios');
 const https = require('https');
+const fs = require('fs');
 const config = require('../config/config');
 
 // Axios instance for BetterDesk Go API
@@ -21,6 +22,27 @@ const apiClient = axios.create({
         'X-API-Key': config.betterdeskApiKey
     },
     httpsAgent: new https.Agent({ rejectUnauthorized: false })
+});
+
+// Retry once on 401 by reloading API key from file (handles race condition
+// where Go server generated the key after Node.js cached an empty value).
+let _keyReloaded = false;
+apiClient.interceptors.response.use(undefined, async (error) => {
+    if (error.response?.status === 401 && !_keyReloaded) {
+        _keyReloaded = true;
+        try {
+            const fresh = fs.readFileSync(config.apiKeyPath, 'utf8').trim();
+            if (fresh && fresh !== config.betterdeskApiKey) {
+                apiClient.defaults.headers['X-API-Key'] = fresh;
+                config.betterdeskApiKey = fresh;
+                console.log('API key reloaded from', config.apiKeyPath);
+                // Retry the original request with new key
+                error.config.headers['X-API-Key'] = fresh;
+                return apiClient.request(error.config);
+            }
+        } catch (_) { /* file not found — nothing to reload */ }
+    }
+    return Promise.reject(error);
 });
 
 // ---------------------------------------------------------------------------
