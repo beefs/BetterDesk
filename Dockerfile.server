@@ -9,7 +9,7 @@
 # ---- Build stage ----
 FROM golang:1.25-alpine AS builder
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git || { sleep 2 && apk add --no-cache git; }
 
 WORKDIR /src
 
@@ -39,6 +39,8 @@ RUN apk add --no-cache \
     curl \
     sqlite \
     tini \
+    || { sleep 2 && apk add --no-cache \
+    ca-certificates curl sqlite tini; } \
     && addgroup -S betterdesk \
     && adduser -S -G betterdesk betterdesk
 

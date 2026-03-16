@@ -11,7 +11,7 @@ WORKDIR /app
 
 # Build dependencies for native modules (better-sqlite3, bcrypt)
 # Note: sqlite-dev is NOT needed — better-sqlite3 bundles its own SQLite
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ || { sleep 2 && apk add --no-cache python3 make g++; }
 
 # Copy package files first (better Docker cache)
 COPY web-nodejs/package.json web-nodejs/package-lock.json* ./
@@ -28,11 +28,12 @@ LABEL version="2.4.0"
 
 WORKDIR /app
 
-# Install runtime dependencies
+# Install runtime dependencies (retry for transient DNS failures)
 RUN apk add --no-cache \
     sqlite \
     curl \
     tini \
+    || { sleep 2 && apk add --no-cache sqlite curl tini; } \
     && addgroup -S betterdesk \
     && adduser -S -G betterdesk betterdesk
 

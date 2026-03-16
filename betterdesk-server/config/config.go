@@ -3,6 +3,7 @@
 package config
 
 import (
+	"log"
 	"net"
 	"os"
 	"strconv"
@@ -229,6 +230,8 @@ func (c *Config) WSRelayPort() int {
 
 // GetRelayServers parses the comma-separated relay server list.
 // Ensures each entry includes a port; appends the default RelayPort if missing.
+// Validates that each entry resolves to a valid IP or hostname (rejects single
+// characters and obviously bogus values that would cause relay failures).
 func (c *Config) GetRelayServers() []string {
 	if c.RelayServers == "" {
 		return nil
@@ -244,6 +247,14 @@ func (c *Config) GetRelayServers() []string {
 		// net.SplitHostPort handles IPv6 bracketed addresses correctly.
 		if _, _, err := net.SplitHostPort(s); err != nil {
 			s = net.JoinHostPort(s, strconv.Itoa(c.RelayPort))
+		}
+		// Validate: extract the host part and reject obviously invalid entries
+		// (single letter, empty host, etc.) that would produce relay addresses
+		// like "a:21117" which cause all relay connections to fail.
+		host, _, err := net.SplitHostPort(s)
+		if err != nil || len(host) < 2 {
+			log.Printf("[config] WARNING: Ignoring invalid relay server %q (host too short or malformed)", s)
+			continue
 		}
 		result = append(result, s)
 	}

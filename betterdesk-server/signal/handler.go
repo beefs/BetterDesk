@@ -793,7 +793,18 @@ func (s *Server) handlePunchHoleSent(phs *pb.PunchHoleSent, senderAddr *net.UDPA
 // handleRequestRelay forwards relay setup request to target peer.
 func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	targetID := msg.Id
-	log.Printf("[signal] RequestRelay from %s for target %s (uuid=%s, secure=%v, connType=%v)", raddr, targetID, msg.Uuid, msg.Secure, msg.ConnType)
+
+	// Generate UUID if the client sent an empty one. This happens when hole-punch
+	// fails after receiving PunchHoleResponse (which has no uuid field) and the
+	// client retries with RequestRelay. Without a valid UUID, the relay server
+	// rejects both connections.
+	relayUUID := msg.Uuid
+	if relayUUID == "" {
+		relayUUID = uuid.New().String()
+		log.Printf("[signal] RequestRelay: client %s sent empty UUID, generated %s", raddr, relayUUID[:8])
+	}
+
+	log.Printf("[signal] RequestRelay from %s for target %s (uuid=%s, secure=%v, connType=%v)", raddr, targetID, relayUUID, msg.Secure, msg.ConnType)
 	target := s.peers.Get(targetID)
 
 	relayServer := s.getRelayServer()
@@ -841,7 +852,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		Union: &pb.RendezvousMessage_RelayResponse{
 			RelayResponse: &pb.RelayResponse{
 				SocketAddr:  crypto.EncodeAddr(raddr),
-				Uuid:        msg.Uuid,
+				Uuid:        relayUUID,
 				RelayServer: relayServer,
 				Union:       &pb.RelayResponse_Id{Id: msg.Id},
 			},
@@ -868,7 +879,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	resp := &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_RelayResponse{
 			RelayResponse: &pb.RelayResponse{
-				Uuid:        msg.Uuid,
+				Uuid:        relayUUID,
 				RelayServer: relayServer,
 				Union:       &pb.RelayResponse_Pk{Pk: signedPk},
 			},
@@ -888,7 +899,15 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 // RelayResponse) caused timeouts for TCP signaling clients (e.g. logged-in users).
 func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr) *pb.RendezvousMessage {
 	targetID := msg.Id
-	log.Printf("[signal] RequestRelay (TCP) from %s for target %s (uuid=%s, secure=%v, connType=%v)", raddr, targetID, msg.Uuid, msg.Secure, msg.ConnType)
+
+	// Generate UUID if the client sent an empty one (see handleRequestRelay comment).
+	relayUUID := msg.Uuid
+	if relayUUID == "" {
+		relayUUID = uuid.New().String()
+		log.Printf("[signal] RequestRelay (TCP): client %s sent empty UUID, generated %s", raddr, relayUUID[:8])
+	}
+
+	log.Printf("[signal] RequestRelay (TCP) from %s for target %s (uuid=%s, secure=%v, connType=%v)", raddr, targetID, relayUUID, msg.Secure, msg.ConnType)
 	target := s.peers.Get(targetID)
 
 	relayServer := s.getRelayServer()
@@ -933,7 +952,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr)
 			Union: &pb.RendezvousMessage_RequestRelay{
 				RequestRelay: &pb.RequestRelay{
 					SocketAddr:         crypto.EncodeAddr(raddr),
-					Uuid:               msg.Uuid,
+					Uuid:               relayUUID,
 					Id:                 msg.Id,
 					RelayServer:        relayServer,
 					Secure:             msg.Secure,
@@ -963,7 +982,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr)
 	return &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_RelayResponse{
 			RelayResponse: &pb.RelayResponse{
-				Uuid:        msg.Uuid,
+				Uuid:        relayUUID,
 				RelayServer: relayServer,
 				Union:       &pb.RelayResponse_Pk{Pk: signedPk},
 			},
@@ -991,6 +1010,15 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 	rr := msg.GetRelayResponse()
 	if rr == nil || len(rr.SocketAddr) == 0 {
 		return
+	}
+
+	// If the target sent a RelayResponse with an empty UUID, both peers will fail
+	// to connect through relay. Generate a UUID as a last resort — the target may
+	// have already connected to relay with "" which won't pair, but at least this
+	// gives useful diagnostics and prevents silent failures.
+	if rr.Uuid == "" {
+		rr.Uuid = uuid.New().String()
+		log.Printf("[signal] WARNING: RelayResponse from %s has empty UUID — generated %s (target may have connected with empty UUID, relay pairing may fail)", senderAddr, rr.Uuid[:8])
 	}
 
 	initiatorAddr, err := crypto.DecodeAddr(rr.SocketAddr)

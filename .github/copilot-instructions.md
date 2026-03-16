@@ -467,6 +467,12 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 100. [x] **Password modal plaintext (Issue #60)**: `modal.js` `prompt()` only checked `options.type`, but `users.js` passed `inputType: 'password'`. Fixed modal to check both `options.type` and `options.inputType`.
 101. [x] **Closed 12 resolved GitHub issues**: #59, #56, #52, #28, #54, #58, #19, #53, #61, #60, #57, #48 — all verified and closed with detailed resolution comments.
 
+#### Go Server — Empty UUID & Relay Fix (Phase 19) ✅ COMPLETED 2026-03-18
+102. [x] **Root cause: Empty UUID in relay (Issues #58, #63, #64)**: When hole-punch fails, RustDesk client sends `RequestRelay{uuid=""}` because `PunchHoleResponse` protobuf has no `uuid` field. Signal server propagated empty UUID to target and relay → relay rejected both connections. Fixed `handleRequestRelay()` (UDP) and `handleRequestRelayTCP()` (TCP) to generate `uuid.New().String()` when `msg.Uuid` is empty.
+103. [x] **handleRelayResponseForward safety**: Added empty UUID warning + generation in `handleRelayResponseForward()` for target-initiated relay flow (last-resort safety net).
+104. [x] **Relay server address validation**: `GetRelayServers()` in `config/config.go` now rejects entries with host < 2 characters (prevents `relay=a:21117` from invalid config).
+105. [x] **Docker DNS resilience (Issue #62)**: Added retry logic (`|| { sleep 2 && apk add ...; }`) to all `apk add --no-cache` commands in `Dockerfile`, `Dockerfile.server`, and `Dockerfile.console` for transient DNS failures on AlmaLinux/CentOS.
+
 ---
 
 ## 🔄 System Statusu v3.0
@@ -641,6 +647,8 @@ Pełna dokumentacja budowania: [BUILD_GUIDE.md](../docs/BUILD_GUIDE.md)
 29. ~~**Address Book sync fails (Issue #57)**~~ ✅ ROZWIĄZANE - Go server `/api/ab` endpoints were stubs returning empty data. Added `address_books` table + full GET/POST handlers for `/api/ab`, `/api/ab/personal`, `/api/ab/tags` with SQLite + PostgreSQL support — Phase 18
 30. ~~**Settings password "password is required" (Issue #60)**~~ ✅ ROZWIĄZANE - `settings.js` sent snake_case fields, `auth.routes.js` expected camelCase. Fixed field names + added missing `confirmPassword` — Phase 18
 31. ~~**Password modal plaintext (Issue #60)**~~ ✅ ROZWIĄZANE - `modal.js` prompt checked `options.type` but `users.js` passed `inputType`. Fixed to check both — Phase 18
+32. ~~**Empty UUID in relay causes all WAN connections to fail (Issues #58, #63, #64)**~~ ✅ ROZWIĄZANE - `PunchHoleResponse` has no `uuid` field, so when hole-punch fails, client sends `RequestRelay{uuid=""}`. Signal server now generates `uuid.New().String()` when empty in both `handleRequestRelay()` (UDP) and `handleRequestRelayTCP()` (TCP). Relay address validation rejects `host < 2 chars` (prevents `relay=a:21117`) — Phase 19
+33. ~~**Docker DNS failures during build (Issue #62)**~~ ✅ ROZWIĄZANE - Added retry logic to all `apk add --no-cache` commands in Dockerfile, Dockerfile.server, Dockerfile.console — Phase 19
 
 ---
 
@@ -730,4 +738,4 @@ All code changes MUST include a security review as part of the implementation pr
 
 ---
 
-*Ostatnia aktualizacja: 2026-03-17 (Go Server Address Book & Issue Fixes — Phase 18) przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-03-18 (Go Server Empty UUID & Relay Fix — Phase 19) przez GitHub Copilot*

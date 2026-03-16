@@ -19,7 +19,8 @@
 # ============= Stage 1: Build Go server =============
 FROM golang:1.25-alpine AS go-builder
 
-RUN apk add --no-cache git
+# Retry apk in case of transient DNS failures (common on AlmaLinux/CentOS Docker)
+RUN apk add --no-cache git || { sleep 2 && apk add --no-cache git; }
 
 WORKDIR /src
 COPY betterdesk-server/go.mod betterdesk-server/go.sum ./
@@ -38,7 +39,7 @@ WORKDIR /app
 
 # Build dependencies for native modules (better-sqlite3, bcrypt)
 # Note: sqlite-dev is NOT needed — better-sqlite3 bundles its own SQLite
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 make g++ || { sleep 2 && apk add --no-cache python3 make g++; }
 
 COPY web-nodejs/package.json web-nodejs/package-lock.json* ./
 RUN npm install --production
@@ -53,14 +54,21 @@ LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk — All-in-One (Go Server + Node.js Console)"
 LABEL version="2.4.0"
 
-# Install runtime packages
+# Install runtime packages (retry for transient DNS failures)
 RUN apk add --no-cache \
     ca-certificates \
     curl \
     sqlite \
     tini \
     supervisor \
-    && mkdir -p /var/log/supervisor
+    && mkdir -p /var/log/supervisor \
+    || { sleep 2 && apk add --no-cache \
+    ca-certificates \
+    curl \
+    sqlite \
+    tini \
+    supervisor \
+    && mkdir -p /var/log/supervisor; }
 
 # Create betterdesk user and directories
 RUN addgroup -S betterdesk && \
