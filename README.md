@@ -519,7 +519,20 @@ The script installs Go, compiles the server, sets up NSSM services (`BetterDeskS
 
 ### Docker
 
-**Single-container (recommended):**
+**🚀 Quick Start (no build required):**
+
+```bash
+# Download and run - that's it!
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/Rustdesk-FreeConsole/main/docker-compose.quick.yml -o docker-compose.yml
+docker compose up -d
+
+# Get admin password
+docker compose logs console 2>&1 | grep -i "Admin password"
+```
+
+Open http://localhost:5000 — done in 30 seconds! See [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) for more options.
+
+**Build from source (advanced):**
 
 ```bash
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
@@ -542,8 +555,6 @@ docker compose -f docker-compose.single.yml --profile postgres up -d
 chmod +x betterdesk-docker.sh
 ./betterdesk-docker.sh
 ```
-
-> **Note**: Docker images are built locally — they are **not** available on Docker Hub. Always run `build` first.
 
 ### Menu Options
 

@@ -525,6 +525,13 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 146. [x] **handleClientHeartbeat extended**: Now parses `cpu`, `memory`, `disk` float64 fields from request body and calls `SavePeerMetric()` when any value > 0.
 147. [x] **GET /api/peers/{id}/metrics endpoint**: New API endpoint returns historical metrics for a peer with configurable limit (default 100, max 1000). Enables Node.js console to fetch metrics from Go server.
 
+#### Docker — GitHub Container Registry & Quick Start (Phase 25) ✅ COMPLETED 2026-03-19
+148. [x] **GitHub Actions workflow**: `.github/workflows/docker-publish.yml` — automatically builds and publishes images to `ghcr.io/unitronix/betterdesk-server`, `ghcr.io/unitronix/betterdesk-console`, `ghcr.io/unitronix/betterdesk` on push to main. Multi-arch: linux/amd64 + linux/arm64.
+149. [x] **docker-compose.quick.yml**: Pre-built images from ghcr.io — no build required. One-liner install: `curl ... && docker compose up -d`.
+150. [x] **DOCKER_QUICKSTART.md**: 30-second quick start guide with troubleshooting, configuration options, and client setup instructions.
+151. [x] **docker-compose.yml updated**: Header now points to quick.yml for beginners.
+152. [x] **README.md updated**: Docker section now starts with Quick Start (no build required).
+
 ---
 
 ## 🔄 System Statusu v3.0
@@ -532,7 +539,7 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 ### Nowe Pliki Źródłowe
 
 | Plik | Opis |
-|------|------|
+|------|------
 | `peer_v3.rs` | Ulepszony system statusu z konfigurowalnymi timeoutami |
 | `database_v3.rs` | Rozszerzona baza danych z server_config |
 | `http_api_v3.rs` | Nowe endpointy API dla konfiguracji |
@@ -794,4 +801,4 @@ All code changes MUST include a security review as part of the implementation pr
 
 ---
 
-*Ostatnia aktualizacja: 2026-03-19 (Go Server — Peer Metrics Persistence — Phase 24) przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-03-19 (Docker — GitHub Container Registry & Quick Start — Phase 25) przez GitHub Copilot*

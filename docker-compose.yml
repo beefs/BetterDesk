@@ -1,8 +1,14 @@
 # BetterDesk Console - Docker Compose Setup
 # Architecture: Go server (single binary) + Node.js web console
 #
-# IMPORTANT: Images are built locally - do NOT try to pull from Docker Hub!
-# Usage: docker compose build && docker compose up -d
+# ============================================================================
+# QUICK START (no build required):
+#   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/Rustdesk-FreeConsole/main/docker-compose.quick.yml -o docker-compose.yml
+#   docker compose up -d
+#
+# BUILD FROM SOURCE (this file):
+#   docker compose build && docker compose up -d
+# ============================================================================
 #
 # The Go server replaces separate hbbs/hbbr — it handles signal, relay,
 # and HTTP API in a single process.
