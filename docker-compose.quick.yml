@@ -10,6 +10,11 @@
 # Web Console: http://localhost:5000
 # Default credentials shown on first startup in logs:
 #   docker compose logs console | grep -i password
+#
+# TROUBLESHOOTING: If you get "denied" or "pull access denied" error,
+# images may not be published yet. Build from source instead:
+#   git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+#   cd Rustdesk-FreeConsole && docker compose -f docker-compose.yml up -d --build
 # =============================================================================
 
 services:

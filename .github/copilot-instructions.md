@@ -536,6 +536,11 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 153. [x] **PS1 `RandomNumberGenerator::Fill` crash (Issue #38)**: `[System.Security.Cryptography.RandomNumberGenerator]::Fill()` is a .NET 6+ static method unavailable in Windows PowerShell 5.1 (.NET Framework 4.x). Changed to `RNGCryptoServiceProvider.GetBytes()` instance method which works on both .NET Framework 4.x and .NET 6+. Fixes API key generation failure → 0 devices in panel on fresh Windows install.
 154. [x] **Rust→Go upgrade detection (Issues #66, #38)**: `Do-Update` (PS1) and `do_update()` (bash) now detect `SERVER_TYPE=rust` (legacy hbbs/hbbr) and warn user that Rust→Go is a major architecture change requiring fresh installation. In auto mode, redirects to `Do-Install`/`do_install` automatically. In interactive mode, prompts user to confirm fresh install (recommended) or continue with partial update. Prevents broken upgrade path from v1.5.0 (Rust) to v2.3.0+ (Go).
 
+#### Go Server — ForceRelay UUID Fix & Docker GHCR (Phase 27) ✅ COMPLETED 2026-03-19
+155. [x] **ForceRelay TCP UUID mismatch (Issue #66)**: `handlePunchHoleRequestTCP` ForceRelay path returned `RelayResponse{uuid=SERVER_UUID}` directly to TCP initiator. Some RustDesk client versions ignore the UUID from `RelayResponse` received in response to `PunchHoleRequest`, generate their own UUID, and connect to relay with it — while the target connects with the server's UUID. Relay pairing always failed (different UUIDs). **Fix**: ForceRelay TCP now returns `PunchHoleResponse{nat_type=SYMMETRIC}` instead of `RelayResponse`. Client sees SYMMETRIC NAT → sends `RequestRelay{uuid=CLIENT_UUID}` on same TCP connection → `handleRequestRelayTCP` forwards CLIENT_UUID to target → both sides use same UUID → relay pairing succeeds.
+156. [x] **Relay diagnostic logging**: Added `log.Printf` with UUID and relay server in `handleRequestRelayTCP` and `handleRequestRelay` (UDP) return paths for better relay pairing diagnostics.
+157. [x] **Docker GHCR "denied" error (Issue #67)**: Pre-built images on `ghcr.io/unitronix/betterdesk-*:latest` not available — workflow never triggered or packages are private. Added troubleshooting section to `DOCKER_QUICKSTART.md` (3 solutions: build locally, trigger workflow, authenticate). Added fallback comment to `docker-compose.quick.yml`. Added package visibility reminder to CI workflow summary step.
+
 ---
 
 ## 🔄 System Statusu v3.0
@@ -805,4 +810,4 @@ All code changes MUST include a security review as part of the implementation pr
 
 ---
 
-*Ostatnia aktualizacja: 2026-03-19 (ALL-IN-ONE Scripts — PS1 Compatibility & Upgrade Detection — Phase 26) przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-03-19 (Go Server — ForceRelay UUID Fix & Docker GHCR — Phase 27) przez GitHub Copilot*

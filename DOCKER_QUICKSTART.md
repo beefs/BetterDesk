@@ -115,6 +115,33 @@ curl http://localhost:21114/api/health
 
 ## ❓ Troubleshooting
 
+### "denied" or "pull access denied" when starting
+
+This means the pre-built images are not yet published to GitHub Container Registry.
+
+**Solution A — Build locally (recommended):**
+```bash
+# Use the full docker-compose.yml which builds images from source
+git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
+cd Rustdesk-FreeConsole
+docker compose -f docker-compose.yml up -d --build
+```
+
+**Solution B — Wait for images to be published:**
+
+The repository maintainer needs to trigger the Docker publish workflow:
+1. Go to: GitHub repo → Actions → "Build & Publish Docker Images"
+2. Click "Run workflow" → Branch: main → Click "Run workflow"
+3. Wait ~10 minutes for images to build
+4. Once images are published, retry `docker compose up -d`
+
+**Solution C — Authenticate (if repo is private):**
+```bash
+# Create a GitHub Personal Access Token with 'read:packages' scope
+docker login ghcr.io -u YOUR_GITHUB_USERNAME -p YOUR_GITHUB_TOKEN
+docker compose up -d
+```
+
 ### "Cannot connect to devices"
 
 1. Check firewall allows ports 21116-21117

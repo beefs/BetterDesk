@@ -174,3 +174,6 @@ package-lock.json
 hbbs-patch/
 hbbs-patch-v2/
 tasks/todo.md
+docs/SECURITY_AUDIT_FULL_2026-03-19.md
+.github/copilot-instructions.md
+.github/copilot-instructions.md

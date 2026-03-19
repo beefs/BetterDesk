@@ -209,3 +209,8 @@ jobs:
           echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.yml -o docker-compose.yml" >> $GITHUB_STEP_SUMMARY
           echo "docker compose up -d" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ⚠️ Package Visibility" >> $GITHUB_STEP_SUMMARY
+          echo "If packages are newly created, they default to **private**." >> $GITHUB_STEP_SUMMARY
+          echo "To allow unauthenticated pulls, change visibility to **Public**:" >> $GITHUB_STEP_SUMMARY
+          echo "GitHub repo → Packages → (each package) → Package settings → Change visibility → Public" >> $GITHUB_STEP_SUMMARY

@@ -574,13 +574,23 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	log.Printf("[signal] PunchHole (TCP): target %s found (addr=%s, status=%s), relay=%s",
 		targetID, target.UDPAddr, target.StatusTier, relayServer)
 
-	// ForceRelay or AlwaysUseRelay: send RelayResponse (NOT PunchHoleResponse)
-	// with a generated UUID, matching the UDP path's sendRelayResponse behavior.
-	// RelayResponse contains the uuid field required by hbbr for session pairing.
+	// ForceRelay or AlwaysUseRelay: return PunchHoleResponse with SYMMETRIC NAT
+	// type instead of RelayResponse. This tells the client that direct P2P is
+	// impossible and it should fall back to relay via RequestRelay.
+	//
+	// The client will then send RequestRelay (with its own UUID) on this same
+	// TCP connection. handleRequestRelayTCP will forward it to the target and
+	// return RelayResponse to the initiator. Both sides connect to relay with
+	// the SAME client-generated UUID, ensuring relay pairing succeeds.
+	//
+	// Previously, returning RelayResponse directly with a server-generated UUID
+	// caused UUID mismatch: some RustDesk client versions ignore the UUID from
+	// a RelayResponse received in response to PunchHoleRequest (they expect
+	// PunchHoleResponse), generate their own UUID, and connect to relay with it
+	// — while the target connects with the server's UUID. This broke relay
+	// pairing every time (Issue #66).
 	if msg.ForceRelay || s.cfg.AlwaysUseRelay {
-		log.Printf("[signal] PunchHole (TCP): force relay for %s", targetID)
-
-		relayUUID := uuid.New().String()
+		log.Printf("[signal] PunchHole (TCP): force relay for %s (returning SYMMETRIC to let client drive relay UUID)", targetID)
 
 		var signedPk []byte
 		if len(target.PK) > 0 {
@@ -592,32 +602,18 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 			}
 		}
 
-		// Forward RequestRelay to target so it connects to hbbr with the same UUID.
-		reqRelay := &pb.RendezvousMessage{
-			Union: &pb.RendezvousMessage_RequestRelay{
-				RequestRelay: &pb.RequestRelay{
-					Id:          msg.Id,
-					Uuid:        relayUUID,
-					SocketAddr:  crypto.EncodeAddr(raddr),
-					RelayServer: relayServer,
-					Secure:      false,
-					ConnType:    msg.ConnType,
-				},
-			},
-		}
+		var targetAddr []byte
 		if target.UDPAddr != nil {
-			// Store the UUID so we can recover it if target responds with empty UUID.
-			s.storePendingUUID(targetID, relayUUID)
-			s.sendUDP(reqRelay, target.UDPAddr)
-			log.Printf("[signal] PunchHole (TCP): forwarded RequestRelay to target %s (uuid=%s)", targetID, relayUUID[:8])
+			targetAddr = crypto.EncodeAddr(target.UDPAddr)
 		}
 
 		return &pb.RendezvousMessage{
-			Union: &pb.RendezvousMessage_RelayResponse{
-				RelayResponse: &pb.RelayResponse{
-					Uuid:        relayUUID,
+			Union: &pb.RendezvousMessage_PunchHoleResponse{
+				PunchHoleResponse: &pb.PunchHoleResponse{
+					SocketAddr:  targetAddr,
+					Pk:          signedPk,
 					RelayServer: relayServer,
-					Union:       &pb.RelayResponse_Pk{Pk: signedPk},
+					Union:       &pb.PunchHoleResponse_NatType{NatType: pb.NatType_SYMMETRIC},
 				},
 			},
 		}
@@ -892,6 +888,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	}
 
 	// Confirm to initiator with SIGNED public key
+	log.Printf("[signal] RequestRelay (UDP): returning RelayResponse to initiator %s (uuid=%s, relay=%s)", raddr, relayUUID[:8], relayServer)
 	resp := &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_RelayResponse{
 			RelayResponse: &pb.RelayResponse{
@@ -997,6 +994,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr)
 	}
 
 	// Immediate RelayResponse to TCP initiator — matching the UDP handler's behavior.
+	log.Printf("[signal] RequestRelay (TCP): returning RelayResponse to initiator %s (uuid=%s, relay=%s)", raddr, relayUUID[:8], relayServer)
 	return &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_RelayResponse{
 			RelayResponse: &pb.RelayResponse{
