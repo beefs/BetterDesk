@@ -29,7 +29,7 @@ const helmetMiddleware = helmet({
             imgSrc: ["'self'", "data:", "blob:"],
             mediaSrc: ["'self'", "blob:"], // blob: required by JMuxer MSE video decoding
             connectSrc: connectSources,
-            frameSrc: ["'none'"],
+            frameSrc: ["'self'"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
             formAction: ["'self'"],

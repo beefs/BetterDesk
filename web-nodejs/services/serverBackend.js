@@ -153,8 +153,8 @@ async function getDeviceById(id) {
     return peer;
 }
 
-async function deleteDevice(id) {
-    return betterdeskApi.deletePeer(id);
+async function deleteDevice(id, options = {}) {
+    return betterdeskApi.deletePeer(id, options);
 }
 
 async function setBanStatus(id, banned, reason = '') {

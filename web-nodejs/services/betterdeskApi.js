@@ -115,10 +115,18 @@ async function getPeer(id) {
 
 /**
  * DELETE /api/peers/:id
+ * @param {string} id - Peer ID
+ * @param {object} [options] - Optional: { revoke: bool, cascade: bool, hard: bool }
  */
-async function deletePeer(id) {
+async function deletePeer(id, options = {}) {
     try {
-        const { data } = await apiClient.delete(`/peers/${encodeURIComponent(id)}`);
+        const params = new URLSearchParams();
+        if (options.revoke) params.set('revoke', 'true');
+        if (options.cascade) params.set('cascade', 'true');
+        if (options.hard) params.set('hard', 'true');
+        const qs = params.toString();
+        const url = `/peers/${encodeURIComponent(id)}${qs ? '?' + qs : ''}`;
+        const { data } = await apiClient.delete(url);
         return wrap(data);
     } catch (err) {
         if (err.response?.data) return wrap(err.response.data);
@@ -415,6 +423,69 @@ function normalisePeer(peer) {
     };
 }
 
+// ---------------------------------------------------------------------------
+// CDAP (Custom Device Automation Protocol) endpoints
+// ---------------------------------------------------------------------------
+
+async function getCDAPStatus() {
+    try {
+        const { data } = await apiClient.get('/cdap/status');
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function getCDAPDevices() {
+    try {
+        const { data } = await apiClient.get('/cdap/devices');
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function getCDAPDeviceInfo(id) {
+    try {
+        const { data } = await apiClient.get(`/cdap/devices/${encodeURIComponent(id)}`);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function getCDAPDeviceManifest(id) {
+    try {
+        const { data } = await apiClient.get(`/cdap/devices/${encodeURIComponent(id)}/manifest`);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function getCDAPDeviceState(id) {
+    try {
+        const { data } = await apiClient.get(`/cdap/devices/${encodeURIComponent(id)}/state`);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+async function sendCDAPCommand(id, widgetId, action, value, reason) {
+    try {
+        const { data } = await apiClient.post(`/cdap/devices/${encodeURIComponent(id)}/command`, {
+            widget_id: widgetId,
+            action,
+            value,
+            reason: reason || ''
+        });
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
 module.exports = {
     // Health / Stats
     getHealth,
@@ -447,6 +518,13 @@ module.exports = {
     setConfig,
     // Sync (no-op)
     syncOnlineStatus,
+    // CDAP
+    getCDAPStatus,
+    getCDAPDevices,
+    getCDAPDeviceInfo,
+    getCDAPDeviceManifest,
+    getCDAPDeviceState,
+    sendCDAPCommand,
     // Helpers
     normalisePeer
 };

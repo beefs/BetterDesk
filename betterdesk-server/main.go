@@ -20,6 +20,7 @@ import (
 	"github.com/unitronix/betterdesk-server/api"
 	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/auth"
+	"github.com/unitronix/betterdesk-server/cdap"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
@@ -275,10 +276,29 @@ func main() {
 		apiSrv.SetMetrics(mc)
 		apiSrv.SetJWTManager(jwtManager)
 		apiSrv.SetKeyPair(kp)
+
+		// CDAP Gateway (optional — custom device automation protocol)
+		var cdapGw *cdap.Gateway
+		if cfg.CDAPEnabled {
+			cdapGw = cdap.New(cfg, database, sig.PeerMap(), sig.EventBus())
+			cdapGw.SetBlocklist(blocklist)
+			cdapGw.SetAuditLogger(auditLogger)
+			cdapGw.SetJWTManager(jwtManager)
+			cdapGw.SetVersion(Version)
+			apiSrv.SetCDAPGateway(cdapGw)
+		}
+
 		if err := apiSrv.Start(ctx); err != nil {
 			log.Fatalf("Failed to start API server: %v", err)
 		}
 		defer apiSrv.Stop()
+
+		if cdapGw != nil {
+			if err := cdapGw.Start(ctx); err != nil {
+				log.Fatalf("Failed to start CDAP gateway: %v", err)
+			}
+			defer cdapGw.Stop()
+		}
 
 		adminSrv.SetPeerMap(sig.PeerMap())
 		if cfg.AdminPassword != "" {
@@ -467,6 +487,9 @@ func parseFlags() *config.Config {
 	flag.BoolVar(&cfg.TLSSignal, "tls-signal", cfg.TLSSignal, "Enable TLS on signal TCP/WS ports (requires --tls-cert and --tls-key)")
 	flag.BoolVar(&cfg.TLSRelay, "tls-relay", cfg.TLSRelay, "Enable TLS on relay TCP/WS ports (requires --tls-cert and --tls-key)")
 	flag.BoolVar(&cfg.TLSApi, "tls-api", cfg.TLSApi, "Enable TLS on HTTP API port (requires --tls-cert and --tls-key)")
+	flag.IntVar(&cfg.CDAPPort, "cdap-port", cfg.CDAPPort, "CDAP WebSocket gateway port (default 21122)")
+	flag.BoolVar(&cfg.CDAPEnabled, "cdap", cfg.CDAPEnabled, "Enable CDAP gateway for custom devices")
+	flag.BoolVar(&cfg.CDAPTLS, "tls-cdap", cfg.CDAPTLS, "Enable TLS on CDAP gateway port (requires --tls-cert and --tls-key)")
 
 	showVersion := flag.Bool("version", false, "Show version and exit")
 	flag.Parse()

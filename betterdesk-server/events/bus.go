@@ -21,6 +21,7 @@ const (
 	EventPeerBanned      EventType = "peer_banned"
 	EventPeerUnbanned    EventType = "peer_unbanned"
 	EventPeerDeleted     EventType = "peer_deleted"
+	EventPeerRevoked     EventType = "peer_revoked"
 	EventPeerIDChanged   EventType = "peer_id_changed"
 	EventBlocklistAdd    EventType = "blocklist_add"
 	EventBlocklistRemove EventType = "blocklist_remove"

@@ -370,7 +370,7 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 ### Features
 
 - **Dashboard** — Real-time statistics cards (total, active, inactive, banned devices)
-- **Device management** — Search, filter, sort, add notes, ban/unban, change ID
+- **Device management** — Responsive devices page with horizontal folder chips, unified toolbar with segmented filters, slim table, and kebab context menu (⋮). Four breakpoints: desktop, tablet (≤768px), phone card layout (≤600px), small phone (≤400px)
 - **Device details** — Hardware tab (sysinfo), metrics tab (live CPU/RAM/disk bars + history charts)
 - **TOTP 2FA** — Two-factor authentication with `otplib`
 - **RBAC** — Admin, Operator, Viewer roles with permission enforcement
@@ -1290,7 +1290,7 @@ RustDesk clients support end-to-end encryption for remote desktop sessions. Bett
 
 | Component | Technology |
 |-----------|-----------|
-| **UI** | HTML5, CSS3 (glassmorphism), JavaScript ES6+ |
+| **UI** | HTML5, CSS3 (glassmorphism, responsive breakpoints), JavaScript ES6+ |
 | **Icons** | Material Icons (offline) |
 | **Charts** | Live metric bars + history charts |
 | **i18n** | JSON-based translations |

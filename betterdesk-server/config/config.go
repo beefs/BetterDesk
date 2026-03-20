@@ -83,6 +83,11 @@ type Config struct {
 	// "managed" - New devices need to be approved or have a valid token
 	// "locked" - Only devices with valid tokens can register
 	EnrollmentMode string
+
+	// CDAP Gateway
+	CDAPPort    int  // WebSocket gateway port (default 21122)
+	CDAPEnabled bool // Enable CDAP gateway (default false)
+	CDAPTLS     bool // Enable TLS on CDAP port
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -97,6 +102,7 @@ func DefaultConfig() *Config {
 		JWTExpiry:       24,
 		RelayMaxConnsIP: 20,
 		EnrollmentMode:  EnrollmentModeOpen, // Backward compatible default
+		CDAPPort:        21122,
 	}
 }
 
@@ -215,6 +221,17 @@ func (c *Config) LoadEnv() {
 			c.EnrollmentMode = mode
 		}
 	}
+	if v := os.Getenv("CDAP_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.CDAPPort = n
+		}
+	}
+	if strings.ToUpper(os.Getenv("CDAP_ENABLED")) == "Y" {
+		c.CDAPEnabled = true
+	}
+	if strings.ToUpper(os.Getenv("CDAP_TLS")) == "Y" {
+		c.CDAPTLS = true
+	}
 }
 
 // NATTestPort returns the NAT test port (signal port - 1).
@@ -326,4 +343,9 @@ func (c *Config) RelayTLSEnabled() bool {
 // Unlike signal/relay, API TLS is opt-in to avoid breaking localhost communication.
 func (c *Config) APITLSEnabled() bool {
 	return (c.TLSApi || c.ForceHTTPS) && c.HasTLSCert()
+}
+
+// CDAPTLSEnabled returns true if TLS should be used for the CDAP WebSocket gateway.
+func (c *Config) CDAPTLSEnabled() bool {
+	return c.CDAPTLS && c.HasTLSCert()
 }

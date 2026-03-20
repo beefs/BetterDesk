@@ -122,6 +122,9 @@
     "delete_warning": "Za chwilę trwale usuniesz to urządzenie:",
     "delete_permanent": "Ta operacja jest nieodwracalna. Wszystkie dane powiązane z tym urządzeniem zostaną trwale usunięte z bazy danych.",
     "delete_success": "Urządzenie usunięte",
+    "revoke_option": "Odwołaj urządzenie (rozłącz + zablokuj ponowną rejestrację)",
+    "revoke_hint": "Urządzenie zostanie natychmiast rozłączone i trwale zablokowane przed ponownym połączeniem z tym serwerem.",
+    "revoke_success": "Urządzenie odwołane i dodane do czarnej listy",
     "details": "Szczegóły urządzenia",
     "ban_title": "Zablokuj urządzenie",
     "ban_confirm": "Czy na pewno chcesz zablokować urządzenie {id}?",
@@ -147,7 +150,14 @@
     "invalid_id": "Nieprawidłowe ID urządzenia (wymagane 6-16 znaków)",
     "invalid_id_format": "Nieprawidłowy format ID (tylko litery, cyfry, myślniki i podkreślenia)",
     "id_exists": "Urządzenie o tym ID już istnieje",
-    "no_selection": "Nie wybrano żadnych urządzeń"
+    "no_selection": "Nie wybrano żadnych urządzeń",
+    "device_type": "Typ",
+    "filter_type_all": "Wszystkie typy",
+    "filter_type_rustdesk": "RustDesk",
+    "filter_type_desktop": "Desktop",
+    "filter_type_scada": "SCADA",
+    "filter_type_iot": "IoT",
+    "filter_type_agent": "Agent"
   },
   "keys": {
     "title": "Klucze serwera",
@@ -1060,5 +1070,37 @@
     "no_file": "Nie wybrano pliku kopii zapasowej",
     "invalid_json": "Nieprawidłowy plik kopii: nie jest poprawnym JSON",
     "invalid_format": "Nieprawidłowy plik kopii: to nie jest kopia BetterDesk"
+  },
+  "cdap": {
+    "device_detail": "Urządzenie CDAP",
+    "loading": "Ładowanie...",
+    "loading_widgets": "Ładowanie widgetów urządzenia...",
+    "load_error": "Nie udało się załadować danych urządzenia",
+    "connected": "Połączony",
+    "disconnected": "Rozłączony",
+    "device_offline_msg": "Urządzenie jest obecnie offline. Wartości widgetów mogą być nieaktualne.",
+    "no_widgets": "Brak dostępnych widgetów",
+    "no_widgets_desc": "To urządzenie nie zarejestrowało manifestu CDAP z definicjami widgetów.",
+    "command_log": "Dziennik poleceń",
+    "clear_log": "Wyczyść dziennik",
+    "confirm_command": "Potwierdź polecenie",
+    "select_option": "Wybierz",
+    "cdap_status": "Status CDAP",
+    "cdap_enabled": "CDAP włączony",
+    "cdap_disabled": "CDAP wyłączony",
+    "cdap_devices": "Urządzenia CDAP",
+    "cdap_connections": "Aktywne połączenia",
+    "send_command": "Wyślij polecenie",
+    "command_sent": "Polecenie wysłane pomyślnie",
+    "command_failed": "Nie udało się wysłać polecenia"
+  },
+  "desktop": {
+    "switch_mode": "Tryb pulpitu",
+    "console_mode": "Tryb konsoli",
+    "loading": "Ładowanie...",
+    "minimize": "Minimalizuj",
+    "maximize": "Maksymalizuj",
+    "restore": "Przywróć",
+    "close": "Zamknij"
   }
 }

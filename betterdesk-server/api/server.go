@@ -19,6 +19,7 @@ import (
 
 	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/auth"
+	"github.com/unitronix/betterdesk-server/cdap"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
@@ -54,6 +55,7 @@ type Server struct {
 	jwtManager        *auth.JWTManager
 	loginLimiter      *ratelimit.IPLimiter
 	keyPair           *crypto.KeyPair // Ed25519 keypair for signing
+	cdapGw            *cdap.Gateway   // CDAP gateway (nil if CDAP disabled)
 	clientTFASessions *tfaSessionStore
 	httpSrv           *http.Server
 	wg                sync.WaitGroup
@@ -106,6 +108,11 @@ func (s *Server) SetJWTManager(jm *auth.JWTManager) {
 // SetKeyPair sets the Ed25519 keypair for the server (used for signing IdPk).
 func (s *Server) SetKeyPair(kp *crypto.KeyPair) {
 	s.keyPair = kp
+}
+
+// SetCDAPGateway sets the CDAP gateway for serving CDAP REST endpoints.
+func (s *Server) SetCDAPGateway(gw *cdap.Gateway) {
+	s.cdapGw = gw
 }
 
 // Start launches the HTTP API server.
@@ -200,6 +207,14 @@ func (s *Server) Start(ctx context.Context) error {
 	// Enrollment mode management (Dual Key System - admin only)
 	mux.HandleFunc("GET /api/enrollment/mode", s.requireRole(auth.RoleAdmin, s.handleGetEnrollmentMode))
 	mux.HandleFunc("PUT /api/enrollment/mode", s.requireRole(auth.RoleAdmin, s.handleSetEnrollmentMode))
+
+	// CDAP device management (requires CDAP gateway to be enabled)
+	mux.HandleFunc("GET /api/cdap/status", s.handleCDAPStatus)
+	mux.HandleFunc("GET /api/cdap/devices", s.handleCDAPListDevices)
+	mux.HandleFunc("GET /api/cdap/devices/{id}", s.handleCDAPDeviceInfo)
+	mux.HandleFunc("GET /api/cdap/devices/{id}/manifest", s.handleCDAPDeviceManifest)
+	mux.HandleFunc("GET /api/cdap/devices/{id}/state", s.handleCDAPDeviceState)
+	mux.HandleFunc("POST /api/cdap/devices/{id}/command", s.requireRole(auth.RoleOperator, s.handleCDAPSendCommand))
 
 	// Prometheus metrics (public, no API key required)
 	mux.HandleFunc("GET /metrics", s.handleMetrics)
@@ -352,9 +367,10 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 	// Enrich with live online status and status tier from memory map
 	type peerResponse struct {
 		*db.Peer
-		LiveOnline bool        `json:"live_online"`
-		LiveStatus peer.Status `json:"live_status"`
-		Platform   string      `json:"platform"`
+		LiveOnline    bool        `json:"live_online"`
+		LiveStatus    peer.Status `json:"live_status"`
+		Platform      string      `json:"platform"`
+		CDAPConnected bool        `json:"cdap_connected"`
 	}
 
 	result := make([]peerResponse, len(peers))
@@ -364,11 +380,20 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 		if snap, ok := s.peers.GetSnapshot(p.ID, config.DegradedThreshold, config.CriticalThreshold); ok {
 			liveStatus = snap.Status
 		}
+
+		// CDAP overlay: device connected via CDAP gateway is online
+		cdapConnected := s.cdapGw != nil && s.cdapGw.IsConnected(p.ID)
+		if cdapConnected && !liveOnline {
+			liveOnline = true
+			liveStatus = peer.StatusOnline
+		}
+
 		result[i] = peerResponse{
-			Peer:       p,
-			LiveOnline: liveOnline,
-			LiveStatus: liveStatus,
-			Platform:   p.OS,
+			Peer:          p,
+			LiveOnline:    liveOnline,
+			LiveStatus:    liveStatus,
+			Platform:      p.OS,
+			CDAPConnected: cdapConnected,
 		}
 	}
 
@@ -394,18 +419,27 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 		liveStatus = snap.Status
 	}
 
+	// CDAP overlay
+	cdapConnected := s.cdapGw != nil && s.cdapGw.IsConnected(p.ID)
+	if cdapConnected && !liveOnline {
+		liveOnline = true
+		liveStatus = peer.StatusOnline
+	}
+
 	type singlePeerResponse struct {
 		*db.Peer
-		LiveOnline bool        `json:"live_online"`
-		LiveStatus peer.Status `json:"live_status"`
-		Platform   string      `json:"platform"`
+		LiveOnline    bool        `json:"live_online"`
+		LiveStatus    peer.Status `json:"live_status"`
+		Platform      string      `json:"platform"`
+		CDAPConnected bool        `json:"cdap_connected"`
 	}
 
 	writeJSON(w, http.StatusOK, singlePeerResponse{
-		Peer:       p,
-		LiveOnline: liveOnline,
-		LiveStatus: liveStatus,
-		Platform:   p.OS,
+		Peer:          p,
+		LiveOnline:    liveOnline,
+		LiveStatus:    liveStatus,
+		Platform:      p.OS,
+		CDAPConnected: cdapConnected,
 	})
 }
 
@@ -455,6 +489,18 @@ func (s *Server) handleUpdatePeerFields(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleDeletePeer(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	hard := r.URL.Query().Get("hard") == "true"
+	revoke := r.URL.Query().Get("revoke") == "true"
+	cascade := r.URL.Query().Get("cascade") == "true"
+
+	// Collect linked peers before deletion (for cascade and response).
+	var linkedIDs []string
+	if revoke || cascade {
+		if linked, err := s.db.GetLinkedPeers(id); err == nil {
+			for _, lp := range linked {
+				linkedIDs = append(linkedIDs, lp.ID)
+			}
+		}
+	}
 
 	var err error
 	if hard {
@@ -467,14 +513,74 @@ func (s *Server) handleDeletePeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Also remove from memory
+	// Remove from memory (closes TCP/WS connections — Phase 3.9).
 	s.peers.Remove(id)
 
-	if s.auditLog != nil {
-		s.auditLog.Log(audit.ActionPeerDeleted, s.remoteIP(r), id, map[string]string{"hard": fmt.Sprintf("%v", hard)})
+	// Revocation: add device ID to blocklist to prevent re-registration.
+	if revoke && s.blocklist != nil {
+		s.blocklist.BlockID(id, "revoked via panel")
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": id})
+	// Cascade: revoke linked devices (e.g., paired mobile→desktop).
+	var cascadedIDs []string
+	if cascade && len(linkedIDs) > 0 {
+		for _, lid := range linkedIDs {
+			if hard {
+				s.db.HardDeletePeer(lid)
+			} else {
+				s.db.DeletePeer(lid)
+			}
+			s.peers.Remove(lid)
+			if revoke && s.blocklist != nil {
+				s.blocklist.BlockID(lid, "revoked via cascade")
+			}
+			cascadedIDs = append(cascadedIDs, lid)
+		}
+	}
+
+	// Publish event.
+	if s.eventBus != nil {
+		action := eventsModule.EventPeerDeleted
+		if revoke {
+			action = eventsModule.EventPeerRevoked
+		}
+		s.eventBus.Publish(eventsModule.Event{
+			Type: action,
+			Data: map[string]string{
+				"id":      id,
+				"hard":    fmt.Sprintf("%v", hard),
+				"revoke":  fmt.Sprintf("%v", revoke),
+				"cascade": fmt.Sprintf("%v", cascadedIDs),
+			},
+		})
+	}
+
+	// Audit log.
+	if s.auditLog != nil {
+		action := audit.ActionPeerDeleted
+		if revoke {
+			action = audit.ActionPeerRevoked
+		}
+		details := map[string]string{
+			"hard":    fmt.Sprintf("%v", hard),
+			"revoke":  fmt.Sprintf("%v", revoke),
+			"cascade": fmt.Sprintf("%v", cascade),
+		}
+		if len(cascadedIDs) > 0 {
+			details["cascaded_ids"] = fmt.Sprintf("%v", cascadedIDs)
+		}
+		s.auditLog.Log(action, s.remoteIP(r), id, details)
+	}
+
+	resp := map[string]interface{}{
+		"status":  "deleted",
+		"id":      id,
+		"revoked": revoke,
+	}
+	if len(cascadedIDs) > 0 {
+		resp["cascaded"] = cascadedIDs
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleBanPeer(w http.ResponseWriter, r *http.Request) {

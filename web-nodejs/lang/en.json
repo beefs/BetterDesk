@@ -122,6 +122,9 @@
     "delete_warning": "You are about to permanently delete this device:",
     "delete_permanent": "This action cannot be undone. All data associated with this device will be permanently removed from the database.",
     "delete_success": "Device deleted successfully",
+    "revoke_option": "Revoke device (disconnect + block re-registration)",
+    "revoke_hint": "The device will be immediately disconnected and permanently blocked from reconnecting to this server.",
+    "revoke_success": "Device revoked and blocklisted successfully",
     "details": "Device Details",
     "ban_title": "Ban Device",
     "ban_confirm": "Are you sure you want to ban device {id}?",
@@ -147,7 +150,14 @@
     "invalid_id": "Invalid device ID (6-16 characters required)",
     "invalid_id_format": "Invalid ID format (letters, numbers, dashes, underscores only)",
     "id_exists": "Device ID already exists",
-    "no_selection": "No devices selected"
+    "no_selection": "No devices selected",
+    "device_type": "Type",
+    "filter_type_all": "All Types",
+    "filter_type_rustdesk": "RustDesk",
+    "filter_type_desktop": "Desktop",
+    "filter_type_scada": "SCADA",
+    "filter_type_iot": "IoT",
+    "filter_type_agent": "Agent"
   },
   "keys": {
     "title": "Server Keys",
@@ -1060,5 +1070,37 @@
     "no_file": "No backup file selected",
     "invalid_json": "Invalid backup file: not valid JSON",
     "invalid_format": "Invalid backup file: not a BetterDesk backup"
+  },
+  "cdap": {
+    "device_detail": "CDAP Device",
+    "loading": "Loading...",
+    "loading_widgets": "Loading device widgets...",
+    "load_error": "Failed to load device data",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "device_offline_msg": "Device is currently offline. Widget values may be stale.",
+    "no_widgets": "No widgets available",
+    "no_widgets_desc": "This device has not registered a CDAP manifest with widget definitions.",
+    "command_log": "Command Log",
+    "clear_log": "Clear log",
+    "confirm_command": "Confirm Command",
+    "select_option": "Select",
+    "cdap_status": "CDAP Status",
+    "cdap_enabled": "CDAP Enabled",
+    "cdap_disabled": "CDAP Disabled",
+    "cdap_devices": "CDAP Devices",
+    "cdap_connections": "Active Connections",
+    "send_command": "Send Command",
+    "command_sent": "Command sent successfully",
+    "command_failed": "Failed to send command"
+  },
+  "desktop": {
+    "switch_mode": "Desktop Mode",
+    "console_mode": "Console Mode",
+    "loading": "Loading...",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
   }
 }

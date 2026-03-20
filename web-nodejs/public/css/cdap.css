@@ -1,0 +1,682 @@
+/**
+ * BetterDesk Console - CDAP Device Page Styles
+ * Widget grid layout, individual widget types, and command log.
+ */
+
+/* ── Page Layout ──────────────────────────────────────────────────── */
+
+.cdap-device-page {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* ── Device Header ────────────────────────────────────────────────── */
+
+.cdap-device-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md, 1rem);
+    margin-bottom: var(--space-lg, 1.5rem);
+    flex-wrap: wrap;
+}
+
+.cdap-device-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 0.5rem);
+}
+
+.cdap-back-btn {
+    color: var(--text-secondary, #8b949e);
+    transition: color 0.15s;
+}
+
+.cdap-back-btn:hover {
+    color: var(--text-primary, #e6edf3);
+}
+
+.cdap-device-identity h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary, #e6edf3);
+    margin: 0;
+}
+
+.cdap-device-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md, 1rem);
+    margin-top: 4px;
+}
+
+.cdap-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    color: var(--text-secondary, #8b949e);
+}
+
+.cdap-meta-item .material-icons {
+    font-size: 16px;
+}
+
+/* Status indicator */
+.cdap-device-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: var(--bg-tertiary, #21262d);
+    border: 1px solid var(--border-color, #30363d);
+}
+
+.cdap-device-status.online {
+    background: rgba(63, 185, 80, 0.1);
+    border-color: rgba(63, 185, 80, 0.3);
+    color: #3fb950;
+}
+
+.cdap-device-status.offline {
+    background: rgba(139, 148, 158, 0.1);
+    border-color: rgba(139, 148, 158, 0.3);
+    color: #8b949e;
+}
+
+.cdap-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.cdap-device-status.online .cdap-status-dot {
+    box-shadow: 0 0 6px rgba(63, 185, 80, 0.5);
+}
+
+/* ── Offline Banner ───────────────────────────────────────────────── */
+
+.cdap-offline-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 0.5rem);
+    padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
+    background: rgba(210, 153, 34, 0.1);
+    border: 1px solid rgba(210, 153, 34, 0.3);
+    border-radius: var(--radius-md, 8px);
+    color: #d29922;
+    font-size: 0.85rem;
+    margin-bottom: var(--space-lg, 1.5rem);
+}
+
+.cdap-offline-banner .material-icons {
+    font-size: 20px;
+}
+
+/* ── Widget Grid ──────────────────────────────────────────────────── */
+
+.cdap-widget-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-md, 1rem);
+    margin-bottom: var(--space-lg, 1.5rem);
+}
+
+.cdap-widget-category {
+    grid-column: 1 / -1;
+    margin-top: var(--space-md, 1rem);
+}
+
+.cdap-widget-category:first-child {
+    margin-top: 0;
+}
+
+.cdap-widget-category h3 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary, #8b949e);
+    margin: 0;
+    padding-bottom: var(--space-xs, 0.25rem);
+    border-bottom: 1px solid var(--border-color, #30363d);
+}
+
+/* Widget Card */
+.cdap-widget {
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: var(--radius-md, 8px);
+    padding: var(--space-md, 1rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm, 0.5rem);
+    transition: border-color 0.15s;
+}
+
+.cdap-widget:hover {
+    border-color: var(--border-hover, #484f58);
+}
+
+.cdap-widget-readonly {
+    opacity: 0.85;
+}
+
+/* Widget sizes */
+.cdap-widget-sm {
+    min-height: auto;
+}
+
+.cdap-widget-lg {
+    grid-column: span 2;
+}
+
+@media (max-width: 768px) {
+    .cdap-widget-lg {
+        grid-column: span 1;
+    }
+}
+
+.cdap-widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.cdap-widget-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary, #8b949e);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.cdap-widget-unit {
+    font-size: 0.75rem;
+    color: var(--text-tertiary, #6e7681);
+}
+
+.cdap-widget-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* ── Toggle Widget ────────────────────────────────────────────────── */
+
+.cdap-toggle {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+}
+
+.cdap-toggle-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.cdap-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-tertiary, #21262d);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 26px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.cdap-toggle-slider::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    width: 18px;
+    height: 18px;
+    background: var(--text-secondary, #8b949e);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.cdap-toggle-input:checked + .cdap-toggle-slider {
+    background: rgba(63, 185, 80, 0.2);
+    border-color: rgba(63, 185, 80, 0.4);
+}
+
+.cdap-toggle-input:checked + .cdap-toggle-slider::before {
+    transform: translateX(22px);
+    background: #3fb950;
+}
+
+.cdap-toggle-input:disabled + .cdap-toggle-slider {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.cdap-toggle-label {
+    margin-left: var(--space-sm, 0.5rem);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary, #e6edf3);
+}
+
+/* ── Gauge Widget ─────────────────────────────────────────────────── */
+
+.cdap-gauge {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cdap-gauge-bar {
+    height: 8px;
+    background: var(--bg-tertiary, #21262d);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.cdap-gauge-fill {
+    height: 100%;
+    background: var(--accent-color, #58a6ff);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.cdap-gauge-fill.cdap-gauge-warning {
+    background: #d29922;
+}
+
+.cdap-gauge-fill.cdap-gauge-danger {
+    background: #f85149;
+}
+
+.cdap-gauge-value {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.cdap-gauge-number {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary, #e6edf3);
+}
+
+.cdap-gauge-range {
+    font-size: 0.75rem;
+    color: var(--text-tertiary, #6e7681);
+}
+
+/* ── Button Widget ────────────────────────────────────────────────── */
+
+.cdap-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--bg-tertiary, #21262d);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: var(--radius-sm, 6px);
+    color: var(--text-primary, #e6edf3);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.cdap-action-btn:hover {
+    background: var(--bg-hover, #292e36);
+    border-color: var(--border-hover, #484f58);
+}
+
+.cdap-action-btn:active {
+    background: var(--accent-color, #58a6ff);
+    color: #fff;
+}
+
+.cdap-action-btn .material-icons {
+    font-size: 18px;
+}
+
+/* ── LED Widget ───────────────────────────────────────────────────── */
+
+.cdap-led {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 0.5rem);
+}
+
+.cdap-led-light {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color, #30363d);
+    transition: background 0.3s, box-shadow 0.3s;
+}
+
+.cdap-led-light.off {
+    background: var(--bg-tertiary, #21262d);
+}
+
+.cdap-led-light.on {
+    background: #3fb950;
+    box-shadow: 0 0 8px rgba(63, 185, 80, 0.5);
+    border-color: rgba(63, 185, 80, 0.4);
+}
+
+.cdap-led-label {
+    font-size: 0.85rem;
+    color: var(--text-primary, #e6edf3);
+}
+
+/* ── Text Widget ──────────────────────────────────────────────────── */
+
+.cdap-text-value {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text-primary, #e6edf3);
+    word-break: break-word;
+}
+
+/* ── Slider Widget ────────────────────────────────────────────────── */
+
+.cdap-slider-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cdap-slider-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: var(--bg-tertiary, #21262d);
+    border-radius: 3px;
+    outline: none;
+}
+
+.cdap-slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent-color, #58a6ff);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg-primary, #0d1117);
+    transition: transform 0.1s;
+}
+
+.cdap-slider-input::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.cdap-slider-input::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--accent-color, #58a6ff);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid var(--bg-primary, #0d1117);
+}
+
+.cdap-slider-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cdap-slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-tertiary, #6e7681);
+}
+
+.cdap-slider-value {
+    font-weight: 600;
+    color: var(--text-primary, #e6edf3);
+}
+
+/* ── Select Widget ────────────────────────────────────────────────── */
+
+.cdap-select-input {
+    width: 100%;
+    padding: 6px 10px;
+    background: var(--bg-tertiary, #21262d);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: var(--radius-sm, 6px);
+    color: var(--text-primary, #e6edf3);
+    font-size: 0.85rem;
+}
+
+.cdap-select-input:focus {
+    border-color: var(--accent-color, #58a6ff);
+    outline: none;
+}
+
+/* ── Chart Widget (simple bars) ───────────────────────────────────── */
+
+.cdap-chart-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cdap-chart-bar-wrap {
+    display: grid;
+    grid-template-columns: 80px 1fr 50px;
+    align-items: center;
+    gap: 8px;
+}
+
+.cdap-chart-bar-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #8b949e);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cdap-chart-bar-track {
+    height: 8px;
+    background: var(--bg-tertiary, #21262d);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.cdap-chart-bar-fill {
+    height: 100%;
+    background: var(--accent-color, #58a6ff);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.cdap-chart-bar-value {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-primary, #e6edf3);
+    text-align: right;
+}
+
+/* ── Loading & Empty States ───────────────────────────────────────── */
+
+.cdap-loading {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--text-secondary, #8b949e);
+}
+
+.cdap-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-color, #30363d);
+    border-top-color: var(--accent-color, #58a6ff);
+    border-radius: 50%;
+    animation: cdap-spin 0.8s linear infinite;
+    margin-bottom: var(--space-md, 1rem);
+}
+
+@keyframes cdap-spin {
+    to { transform: rotate(360deg); }
+}
+
+.cdap-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 20px;
+    text-align: center;
+}
+
+.cdap-empty-icon {
+    font-size: 64px;
+    color: var(--text-tertiary, #6e7681);
+    margin-bottom: var(--space-md, 1rem);
+}
+
+.cdap-empty h3 {
+    color: var(--text-primary, #e6edf3);
+    margin: 0 0 8px;
+}
+
+.cdap-empty p {
+    color: var(--text-secondary, #8b949e);
+    margin: 0;
+    max-width: 400px;
+}
+
+.cdap-error {
+    color: #f85149;
+    text-align: center;
+}
+
+/* ── Command Log ──────────────────────────────────────────────────── */
+
+.cdap-command-log {
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: var(--radius-md, 8px);
+    overflow: hidden;
+}
+
+.cdap-command-log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
+    border-bottom: 1px solid var(--border-color, #30363d);
+}
+
+.cdap-command-log-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary, #8b949e);
+    margin: 0;
+}
+
+.cdap-command-log-header h3 .material-icons {
+    font-size: 18px;
+}
+
+.cdap-command-log-entries {
+    max-height: 240px;
+    overflow-y: auto;
+    padding: var(--space-xs, 0.25rem) 0;
+}
+
+.cdap-log-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px var(--space-md, 1rem);
+    font-size: 0.8rem;
+    border-bottom: 1px solid var(--border-subtle, rgba(48, 54, 61, 0.5));
+}
+
+.cdap-log-entry:last-child {
+    border-bottom: none;
+}
+
+.cdap-log-icon {
+    font-size: 16px;
+}
+
+.cdap-log-success .cdap-log-icon {
+    color: #3fb950;
+}
+
+.cdap-log-error .cdap-log-icon {
+    color: #f85149;
+}
+
+.cdap-log-time {
+    color: var(--text-tertiary, #6e7681);
+    min-width: 70px;
+    font-family: monospace;
+}
+
+.cdap-log-detail {
+    flex: 1;
+    color: var(--text-primary, #e6edf3);
+}
+
+.cdap-log-detail strong {
+    color: var(--accent-color, #58a6ff);
+}
+
+.cdap-log-error-msg {
+    color: #f85149;
+    font-size: 0.75rem;
+}
+
+.cdap-log-empty {
+    padding: var(--space-md, 1rem);
+    text-align: center;
+    color: var(--text-tertiary, #6e7681);
+    font-size: 0.8rem;
+}
+
+/* ── Unsupported Widget ───────────────────────────────────────────── */
+
+.cdap-widget-unsupported {
+    padding: var(--space-sm, 0.5rem);
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-tertiary, #6e7681);
+    font-style: italic;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .cdap-widget-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cdap-device-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .cdap-device-meta {
+        flex-wrap: wrap;
+    }
+
+    .cdap-chart-bar-wrap {
+        grid-template-columns: 60px 1fr 40px;
+    }
+}

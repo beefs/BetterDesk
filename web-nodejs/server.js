@@ -101,6 +101,13 @@ app.use(rustdeskApiRoutes);
 // i18n middleware
 app.use(initI18n());
 
+// Embed mode — when ?embed=1 is present, layout renders without sidebar/navbar
+// Used by Desktop Mode to load pages inside floating windows (iframes)
+app.use((req, res, next) => {
+    res.locals.embed = req.query.embed === '1';
+    next();
+});
+
 // CSRF protection — generate token for views, validate on POST/PUT/DELETE/PATCH
 app.use(csrfTokenProvider);
 app.use(doubleCsrfProtection);

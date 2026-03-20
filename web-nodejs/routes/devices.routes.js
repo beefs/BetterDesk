@@ -173,10 +173,13 @@ router.patch('/api/devices/:id', requireAuth, requireRole('operator'), async (re
 
 /**
  * DELETE /api/devices/:id - Delete device (soft delete)
+ * Query params: revoke=true (blocklist + disconnect), cascade=true (delete linked devices)
  */
 router.delete('/api/devices/:id', requireAuth, requireRole('operator'), async (req, res) => {
     try {
         const id = req.params.id;
+        const revoke = req.query.revoke === 'true';
+        const cascade = req.query.cascade === 'true';
         
         const device = await serverBackend.getDeviceById(id);
         if (!device) {
@@ -186,7 +189,7 @@ router.delete('/api/devices/:id', requireAuth, requireRole('operator'), async (r
             });
         }
         
-        const result = await serverBackend.deleteDevice(id);
+        const result = await serverBackend.deleteDevice(id, { revoke, cascade });
         
         if (!result || !result.success) {
             return res.status(500).json({
@@ -201,9 +204,17 @@ router.delete('/api/devices/:id', requireAuth, requireRole('operator'), async (r
         } catch { /* non-critical: auth.db cleanup is secondary */ }
         
         // Log action
-        await db.logAction(req.session.userId, 'device_deleted', `Device ${id} deleted`, req.ip);
+        const action = revoke ? 'device_revoked' : 'device_deleted';
+        const details = revoke
+            ? `Device ${id} revoked (blocklist + disconnect)${cascade ? ' + cascade' : ''}`
+            : `Device ${id} deleted`;
+        await db.logAction(req.session.userId, action, details, req.ip);
         
-        res.json({ success: true });
+        res.json({
+            success: true,
+            revoked: revoke,
+            cascaded: result.cascaded || [],
+        });
     } catch (err) {
         console.error('Delete device error:', err);
         res.status(500).json({

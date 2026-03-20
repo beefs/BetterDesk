@@ -26,7 +26,9 @@ type Peer struct {
 	DeletedAt    *time.Time `json:"deleted_at,omitempty"`
 	Note         string     `json:"note,omitempty"`
 	Tags         string     `json:"tags,omitempty"`
-	HeartbeatSeq int64      `json:"-"` // internal heartbeat counter
+	DeviceType   string     `json:"device_type,omitempty"`   // CDAP: desktop, mobile, headless, kiosk, etc.
+	LinkedPeerID string     `json:"linked_peer_id,omitempty"` // CDAP: paired device (e.g., mobile→desktop)
+	HeartbeatSeq int64      `json:"-"`                        // internal heartbeat counter
 }
 
 // ServerConfig stores runtime configuration in the database.
@@ -138,6 +140,9 @@ type Database interface {
 	// ID change
 	ChangePeerID(oldID, newID string) error
 	GetIDChangeHistory(id string) ([]*IDChangeHistory, error)
+
+	// CDAP: linked device queries
+	GetLinkedPeers(id string) ([]*Peer, error)
 
 	// Tags
 	UpdatePeerTags(id, tags string) error

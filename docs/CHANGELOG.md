@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-03-20
+
+### 🎨 Devices Page UI Redesign
+
+Complete UI overhaul of the Devices page — fully responsive, space-efficient, and optimized for phone, tablet, and desktop.
+
+#### Layout Changes
+- **Sidebar removed** — 280px folder sidebar replaced with horizontal scrollable **folder chips** (pill buttons)
+- **Unified toolbar** — Search, segmented filter buttons (All/Online/Offline/Banned), and column visibility toggle in a single row
+- **Slim table** — Reduced cell padding for higher information density
+- **Kebab menu** (⋮) — Replaced 5 inline action buttons per row with a compact dropdown menu (connect, connect-desktop, details, ban/unban, delete)
+- **Status dot** — Colored dot (green/gray/red) inline with device ID for at-a-glance status
+- **Mobile bottom sheet** — On phones, kebab menu appears as a full-width bottom sheet with backdrop overlay
+
+#### Responsive Breakpoints
+- **≤1024px** — Hides `device_type` column
+- **≤768px** — Hides `platform` + `last_online` columns; search goes full-width; button labels hidden (icons only)
+- **≤600px** — Card-style rows (CSS grid 2-column); `<thead>` hidden; kebab becomes fixed bottom sheet with overlay backdrop
+- **≤400px** — Folder chip labels hidden (icons only); smaller filter buttons
+
+#### Files Changed
+- `views/devices.ejs` — Complete template rewrite
+- `public/css/devices.css` — Complete stylesheet rewrite (~780 lines)
+- `public/js/devices.js` — Updated rendering (kebab menu, folder chips, status dots, global close handler)
+
+---
+
+## [2.4.0] - 2026-03-01
+
+### ✨ PostgreSQL Support, Migration Tool, CDAP, TLS Everywhere & More
+
+See `.github/copilot-instructions.md` for full details on Phases 4–29.
+
+#### Highlights
+- PostgreSQL database backend (`pgx/v5`, connection pooling, `LISTEN/NOTIFY`)
+- SQLite ↔ PostgreSQL migration tool (`tools/migrate/`)
+- TLS for TCP signal, relay, and WebSocket (auto-detect plain/TLS on same port)
+- E2E encryption fixes (relay UUID, SignIdPk NaCl format, PunchHoleResponse)
+- CDAP protocol v0.3.0 (device widgets, commands, panel rendering)
+- Sysinfo/heartbeat endpoints for hostname/platform display
+- Address book sync in Go server
+- Docker single-container + GHCR publishing
+- 30+ bug fixes across Go server, Node.js console, and installer scripts
+
+---
+
 ## [2.3.0] - 2026-02-22
 
 ### 🔒 Security Audit & Fixes

@@ -541,6 +541,36 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 156. [x] **Relay diagnostic logging**: Added `log.Printf` with UUID and relay server in `handleRequestRelayTCP` and `handleRequestRelay` (UDP) return paths for better relay pairing diagnostics.
 157. [x] **Docker GHCR "denied" error (Issue #67)**: Pre-built images on `ghcr.io/unitronix/betterdesk-*:latest` not available — workflow never triggered or packages are private. Added troubleshooting section to `DOCKER_QUICKSTART.md` (3 solutions: build locally, trigger workflow, authenticate). Added fallback comment to `docker-compose.quick.yml`. Added package visibility reminder to CI workflow summary step.
 
+#### CDAP v0.2.0 — Device Revocation & Schema (Phase 28) ✅ COMPLETED 2026-03-20
+158. [x] **CDAP schema columns**: Added `device_type TEXT DEFAULT ''` and `linked_peer_id TEXT DEFAULT ''` to `peers` table in both SQLite (`db/sqlite.go`) and PostgreSQL (`db/postgres.go`) via automatic column migration (v2.5.0). Updated all SELECT/Scan queries (GetPeer, ListPeers, ListPeersByTag, ChangePeerID) and `UpdatePeerFields` allowed keys.
+159. [x] **GetLinkedPeers**: New `GetLinkedPeers(id string) ([]*Peer, error)` method on Database interface + both implementations. Queries peers where `linked_peer_id = id`.
+160. [x] **Device revocation endpoint**: Enhanced `DELETE /api/peers/{id}` with `?revoke=true` (auto BlockID + disconnect active connections) and `?cascade=true` (delete all linked devices). Publishes `EventPeerRevoked` event and logs `ActionPeerRevoked` audit action.
+161. [x] **Connection teardown on Remove**: `peer.Entry.CloseConnections()` method closes TCP and WebSocket connections. Called from `peer.Map.Remove()` and `CleanExpired()` — revoked devices are disconnected immediately.
+162. [x] **Panel revocation UI**: Delete modal in `devices.js` includes "Revoke device" checkbox with hint text. Routes through `devices.routes.js` → `serverBackend.js` → `betterdeskApi.js` with `revoke`/`cascade` query params.
+163. [x] **i18n keys**: Added `revoke_option`, `revoke_hint`, `revoke_success` to EN, PL, ZH translation files.
+164. [x] **Deployed & verified**: Binary deployed to production server (PostgreSQL backend). Automatic migration confirmed — `device_type` and `linked_peer_id` columns present. API returns peers correctly. 5 devices online, 53 total.
+
+#### CDAP v0.3.0 — Panel Widget Rendering (Phase 29) ✅ COMPLETED 2026-03-20
+165. [x] **cdap/api.go**: REST-helper methods on Gateway — `GetDeviceInfo()`, `GetDeviceManifest()`, `GetDeviceWidgetState()`, `IsConnected()`, `SendCommandJSON()`, `ListConnectedDevices()`. New `DeviceInfo` struct for REST responses.
+166. [x] **api/cdap_handlers.go**: 6 HTTP handlers — `handleCDAPStatus`, `handleCDAPListDevices`, `handleCDAPDeviceInfo`, `handleCDAPDeviceManifest`, `handleCDAPDeviceState`, `handleCDAPSendCommand`. Uses `commandCounter atomic.Int64` for unique command IDs. Returns 503 when CDAP disabled.
+167. [x] **api/server.go CDAP integration**: Added `cdapGw` field, `SetCDAPGateway()` method, 6 CDAP mux routes. `CDAPConnected` bool in `peerResponse` for both `handleListPeers` and `handleGetPeer`. CDAP overlay: if device connected via CDAP but not signal, shown as online.
+168. [x] **main.go CDAP wiring**: Gateway created before API server, `SetCDAPGateway()` called before `Start()`, gateway started after API.
+169. [x] **betterdeskApi.js CDAP methods**: 6 async methods — `getCDAPStatus`, `getCDAPDevices`, `getCDAPDeviceInfo`, `getCDAPDeviceManifest`, `getCDAPDeviceState`, `sendCDAPCommand`.
+170. [x] **cdap.routes.js**: Page route `GET /cdap/devices/:id` + 6 API proxy routes. Uses `requireAuth` + `requireRole('operator')` for command sending.
+171. [x] **routes/index.js**: Registered `cdapRoutes` as `router.use('/', cdapRoutes)`.
+172. [x] **cdap-device.ejs**: Device detail page with header (name, type, version, uptime, status), offline banner, widget grid, empty state, command log panel.
+173. [x] **cdap-widgets.js**: Widget renderer supporting 8 types (toggle, gauge, button, led, text, slider, select, chart). State polling every 3s. Info polling every 10s. User interaction guard (`_userInteracting` flag) prevents state overwrite during input. Grouped by category.
+174. [x] **cdap-commands.js**: Command sender with per-widget cooldown (1s), confirmation dialog integration, command log (max 50 entries), toast notifications.
+175. [x] **cdap.css**: Full widget styling — grid layout, toggle switch, gauge bar with danger/warning thresholds, LED indicator, slider with range labels, select dropdown, chart bars, command log panel. Responsive breakpoints. Dark theme CSS variables.
+176. [x] **i18n keys**: 22 CDAP keys added to EN, PL, ZH translation files (device_detail, loading, connected, disconnected, widgets, commands, etc.).
+177. [x] **Deployed & verified**: Go binary + Node.js files deployed. Server running, console active. CDAP routes return 302 (auth redirect) for unauthenticated, 401 for API without key — both correct.
+
+#### Devices Page UI Redesign (Phase 30) ✅ COMPLETED 2026-03-20
+178. [x] **devices.ejs rewrite**: Removed 280px sidebar layout. New single-column layout with horizontal scrollable folder chips (`.folder-chip` buttons), unified toolbar (search + segmented filter pills + column visibility toggle), slim table with 7 columns (id, hostname, device_type, platform, last_online, status, actions), kebab menu (`more_vert` icon) replacing 5 inline action buttons, mobile bottom sheet overlay for phone kebab menu.
+179. [x] **devices.css rewrite**: ~780 lines. 4 responsive breakpoints: ≤1024px (hide device_type), ≤768px (hide platform+last_online, full-width search, icon-only buttons), ≤600px (card-style rows via CSS grid 2-col, hidden thead, fixed bottom sheet kebab with overlay), ≤400px (chip labels hidden, compact filters). Folder chip styles with hover-reveal edit/delete actions. Kebab dropdown with color-coded menu items.
+180. [x] **devices.js updates**: `renderDevices()` outputs new HTML template with `.device-status-dot`, `.kebab-wrapper`/`.kebab-btn`/`.kebab-menu`. `renderFolders()` changed from `.folder-item` divs to `.folder-chip` buttons with `.chip-action` edit/delete. `attachRowEventListeners()` handles kebab toggle + menu item actions. Added `initKebabGlobalClose()` + `closeAllKebabMenus()`. Updated all selectors: `.folder-item` → `.folder-chip` in `selectFolder()`, `updateFolderCounts()`, `initFolders()`, `attachFolderDropEvents()`. Double-click guard updated from `.action-btn`/`.drag-handle` to `.kebab-wrapper`.
+181. [x] **Deployed & verified**: All 3 files deployed to production server. Console returns 302 (service running). Responsive layout active.
+
 ---
 
 ## 🔄 System Statusu v3.0
@@ -810,4 +840,4 @@ All code changes MUST include a security review as part of the implementation pr
 
 ---
 
-*Ostatnia aktualizacja: 2026-03-19 (Go Server — ForceRelay UUID Fix & Docker GHCR — Phase 27) przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-03-20 (Devices Page UI Redesign — Phase 30) przez GitHub Copilot*

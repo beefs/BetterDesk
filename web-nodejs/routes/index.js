@@ -27,6 +27,7 @@ const dataguardRoutes = require('./dataguard.routes');
 const reportsRoutes = require('./reports.routes');
 const tenantsRoutes = require('./tenants.routes');
 const registrationRoutes = require('./registration.routes');
+const cdapRoutes = require('./cdap.routes');
 
 /**
  * Middleware to require JSON Content-Type for POST/PATCH/PUT requests to API routes.
@@ -92,5 +93,6 @@ router.use('/api/reports', reportsRoutes);       // admin-facing: /api/reports/*
 router.use('/api/tenants', tenantsRoutes);       // admin-facing: /api/tenants/*
 router.use('/', registrationRoutes);               // admin-facing: /registrations, /api/registrations/*
 router.use('/api/bd', registrationRoutes);          // device-facing: /api/bd/register-request, /api/bd/register-status
+router.use('/', cdapRoutes);                            // admin-facing: /cdap/devices/:id, /api/cdap/*
 
 module.exports = router;

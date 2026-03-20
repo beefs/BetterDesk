@@ -15,6 +15,7 @@
         initUserMenu();
         initRefreshButton();
         initRegistrationBadge();
+        initDesktopMode();
     }
     
     /**
@@ -174,6 +175,15 @@
 
         updateBadge();
         setInterval(updateBadge, 30000); // every 30s
+    }
+    
+    /**
+     * Desktop mode initialization
+     */
+    function initDesktopMode() {
+        if (window.DesktopMode && typeof window.DesktopMode.init === 'function') {
+            window.DesktopMode.init();
+        }
     }
     
 })();

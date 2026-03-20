@@ -1,0 +1,81 @@
+<%- include('layouts/main', {
+    title: _('cdap.device_detail'),
+    pageStyles: ['cdap'],
+    pageScripts: ['cdap-widgets', 'cdap-commands'],
+    currentPage: 'devices',
+    breadcrumb: [
+        { label: _('nav.devices'), href: '/devices' },
+        { label: _('cdap.device_detail') }
+    ],
+    body: `
+        <div class="cdap-device-page" data-device-id="${deviceId}">
+            <!-- Device Header -->
+            <div class="cdap-device-header">
+                <div class="cdap-device-title">
+                    <a href="/devices" class="btn-icon cdap-back-btn" title="${_('common.back')}">
+                        <span class="material-icons">arrow_back</span>
+                    </a>
+                    <div class="cdap-device-identity">
+                        <h1 id="cdap-device-name">${deviceId}</h1>
+                        <div class="cdap-device-meta" id="cdap-device-meta">
+                            <span class="cdap-meta-item" id="cdap-device-type">
+                                <span class="material-icons">memory</span>
+                                <span>—</span>
+                            </span>
+                            <span class="cdap-meta-item" id="cdap-device-version">
+                                <span class="material-icons">info_outline</span>
+                                <span>—</span>
+                            </span>
+                            <span class="cdap-meta-item" id="cdap-device-uptime">
+                                <span class="material-icons">schedule</span>
+                                <span>—</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="cdap-device-status" id="cdap-device-status">
+                    <span class="cdap-status-dot"></span>
+                    <span class="cdap-status-text">${_('cdap.loading')}</span>
+                </div>
+            </div>
+
+            <!-- Connection Banner (shown when disconnected) -->
+            <div class="cdap-offline-banner hidden" id="cdap-offline-banner">
+                <span class="material-icons">cloud_off</span>
+                <span>${_('cdap.device_offline_msg')}</span>
+            </div>
+
+            <!-- Widget Grid -->
+            <div class="cdap-widget-grid" id="cdap-widget-grid">
+                <!-- Widgets rendered by cdap-widgets.js -->
+                <div class="cdap-loading" id="cdap-loading">
+                    <div class="cdap-loading-spinner"></div>
+                    <p>${_('cdap.loading_widgets')}</p>
+                </div>
+            </div>
+
+            <!-- Empty State (no manifest) -->
+            <div class="cdap-empty hidden" id="cdap-empty">
+                <span class="material-icons cdap-empty-icon">widgets</span>
+                <h3>${_('cdap.no_widgets')}</h3>
+                <p>${_('cdap.no_widgets_desc')}</p>
+            </div>
+
+            <!-- Command Log -->
+            <div class="cdap-command-log hidden" id="cdap-command-log">
+                <div class="cdap-command-log-header">
+                    <h3>
+                        <span class="material-icons">terminal</span>
+                        ${_('cdap.command_log')}
+                    </h3>
+                    <button class="btn-icon" id="cdap-clear-log" title="${_('cdap.clear_log')}">
+                        <span class="material-icons">delete_sweep</span>
+                    </button>
+                </div>
+                <div class="cdap-command-log-entries" id="cdap-log-entries">
+                    <!-- Command log entries appended by cdap-commands.js -->
+                </div>
+            </div>
+        </div>
+    `
+}) %>

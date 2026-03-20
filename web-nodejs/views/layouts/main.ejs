@@ -13,24 +13,31 @@
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/css/main.css">
     <link rel="stylesheet" href="/css/theme.css">
+    <% if (!embed) { %>
+    <link rel="stylesheet" href="/css/desktop-mode.css">
+    <% } %>
     <% if (typeof pageStyles !== 'undefined' && pageStyles.length) { %>
         <% pageStyles.forEach(style => { %>
     <link rel="stylesheet" href="/css/<%= style %>.css">
         <% }); %>
     <% } %>
 </head>
-<body>
+<body<%= embed ? ' class="embed-mode"' : '' %>>
     <div class="app-layout" id="app">
+        <% if (!embed) { %>
         <!-- Sidebar -->
         <%- include('../partials/sidebar') %>
         
         <!-- Sidebar overlay for mobile -->
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
+        <% } %>
         
         <!-- Main wrapper -->
         <div class="main-wrapper">
+            <% if (!embed) { %>
             <!-- Navbar -->
             <%- include('../partials/navbar') %>
+            <% } %>
             
             <!-- Main content -->
             <main class="main-content">
@@ -38,6 +45,29 @@
             </main>
         </div>
     </div>
+    
+    <% if (!embed) { %>
+    <!-- Desktop Mode Shell (hidden by default, activated via toggle) -->
+    <div id="desktop-shell" class="desktop-shell">
+        <div class="desktop-wallpaper"></div>
+        <div class="desktop-icons" id="desktop-icons"></div>
+        <div class="desktop-windows" id="desktop-windows"></div>
+        <div class="desktop-taskbar" id="desktop-taskbar">
+            <div class="taskbar-start">
+                <button class="taskbar-start-btn" id="taskbar-start-btn" title="<%= appName %>">
+                    <span class="material-icons">grid_view</span>
+                </button>
+            </div>
+            <div class="taskbar-apps" id="taskbar-apps"></div>
+            <div class="taskbar-right">
+                <button class="taskbar-btn taskbar-console-btn" id="taskbar-console-btn" title="<%= _('desktop.console_mode') %>">
+                    <span class="material-icons">view_sidebar</span>
+                </button>
+                <div class="taskbar-clock" id="taskbar-clock"></div>
+            </div>
+        </div>
+    </div>
+    <% } %>
     
     <!-- Modal container -->
     <div id="modal-container"></div>
@@ -53,7 +83,8 @@
             translations: <%- JSON.stringify(translations || {}) %>,
             csrfToken: '<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>',
             user: <%- JSON.stringify(user || null) %>,
-            branding: <%- JSON.stringify(branding || {}) %>
+            branding: <%- JSON.stringify(branding || {}) %>,
+            embed: <%= embed ? 'true' : 'false' %>
         };
     </script>
     <script src="/js/utils.js"></script>
@@ -61,6 +92,9 @@
     <script src="/js/notifications.js?v=<%= Date.now() %>"></script>
     <script src="/js/modal.js?v=<%= Date.now() %>"></script>
     <script src="/js/app.js?v=<%= Date.now() %>"></script>
+    <% if (!embed) { %>
+    <script src="/js/desktop-mode.js?v=<%= Date.now() %>"></script>
+    <% } %>
     <% if (typeof pageScripts !== 'undefined' && pageScripts.length) { %>
         <% pageScripts.forEach(script => { %>
     <script src="/js/<%= script %>.js?v=<%= Date.now() %>"></script>

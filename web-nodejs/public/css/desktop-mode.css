@@ -1,0 +1,597 @@
+/**
+ * BetterDesk Console - Desktop Mode Styles
+ * Windows-like desktop environment with floating windows, taskbar, and animations.
+ * Only active on viewports >= 1200px.
+ */
+
+/* ============ Desktop Toggle Button (navbar) ============ */
+
+.desktop-toggle-btn {
+    display: none !important;
+}
+
+@media (min-width: 1200px) {
+    .desktop-toggle-btn {
+        display: flex !important;
+    }
+}
+
+/* ============ Desktop Shell ============ */
+
+.desktop-shell {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+body.desktop-active .app-layout {
+    display: none !important;
+}
+
+body.desktop-active .desktop-shell {
+    display: flex;
+}
+
+/* ============ Wallpaper ============ */
+
+.desktop-wallpaper {
+    position: absolute;
+    inset: 0;
+    background-image: url('/img/betterdesk_wallpaper.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: 0;
+}
+
+.desktop-wallpaper::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+}
+
+/* ============ Desktop Icons Grid ============ */
+
+.desktop-icons {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    bottom: 56px;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 96px);
+    grid-template-rows: repeat(auto-fill, 96px);
+    gap: 8px;
+    align-content: start;
+    padding: 8px;
+    pointer-events: none;
+}
+
+.desktop-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 88px;
+    height: 88px;
+    border-radius: 8px;
+    cursor: pointer;
+    pointer-events: all;
+    user-select: none;
+    transition: background 0.15s ease, transform 0.15s ease;
+    text-decoration: none;
+    opacity: 0;
+    animation: iconAppear 0.4s ease forwards;
+}
+
+.desktop-icon:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(1.05);
+}
+
+.desktop-icon:active {
+    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.desktop-icon-img {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 0;
+}
+
+.desktop-icon-img .material-icons {
+    font-size: 28px;
+    color: #fff;
+}
+
+.desktop-icon-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #fff;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+/* Stagger animation for desktop icons */
+@keyframes iconAppear {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ============ Floating Windows ============ */
+
+.desktop-windows {
+    position: absolute;
+    inset: 0;
+    bottom: 48px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.desktop-window {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    min-width: 420px;
+    min-height: 300px;
+    background: var(--bg-primary, #0d1117);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.25);
+    pointer-events: all;
+    overflow: hidden;
+    animation: windowOpen 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.desktop-window.closing {
+    animation: windowClose 0.2s ease-in forwards;
+}
+
+.desktop-window.minimizing {
+    animation: windowMinimize 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.desktop-window.maximized {
+    border-radius: 0;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.desktop-window.focused {
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3),
+                0 0 0 1px var(--accent-color, #58a6ff);
+}
+
+/* ============ Window Title Bar ============ */
+
+.window-titlebar {
+    display: flex;
+    align-items: center;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 8px 0 12px;
+    background: var(--bg-secondary, #161b22);
+    border-bottom: 1px solid var(--border-color, #30363d);
+    cursor: default;
+    user-select: none;
+    gap: 8px;
+}
+
+.window-titlebar-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.window-titlebar-icon .material-icons {
+    font-size: 16px;
+    color: #fff;
+}
+
+.window-titlebar-text {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary, #e6edf3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.window-titlebar-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+}
+
+.window-ctrl-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.window-ctrl-btn .material-icons {
+    font-size: 16px;
+}
+
+.window-ctrl-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary, #e6edf3);
+}
+
+.window-ctrl-btn.close-btn:hover {
+    background: #da3633;
+    color: #fff;
+}
+
+/* ============ Window Content ============ */
+
+.window-content {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-primary, #0d1117);
+}
+
+.window-content iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: var(--bg-primary, #0d1117);
+}
+
+.window-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: var(--bg-primary, #0d1117);
+    z-index: 1;
+    transition: opacity 0.3s ease;
+}
+
+.window-loading.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.window-loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-color, #30363d);
+    border-top-color: var(--accent-color, #58a6ff);
+    border-radius: 50%;
+    animation: windowSpin 0.8s linear infinite;
+}
+
+.window-loading-text {
+    font-size: 12px;
+    color: var(--text-secondary, #8b949e);
+}
+
+@keyframes windowSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============ Window Resize Edges & Corners ============ */
+
+.window-edge {
+    position: absolute;
+    z-index: 5;
+}
+
+/* Edges */
+.edge-n  { top: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+.edge-s  { bottom: -3px; left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+.edge-e  { top: 8px; right: -3px; bottom: 8px; width: 6px; cursor: ew-resize; }
+.edge-w  { top: 8px; left: -3px; bottom: 8px; width: 6px; cursor: ew-resize; }
+
+/* Corners */
+.edge-ne { top: -3px; right: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
+.edge-nw { top: -3px; left: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
+.edge-se { bottom: -3px; right: -3px; width: 14px; height: 14px; cursor: nwse-resize; }
+.edge-sw { bottom: -3px; left: -3px; width: 14px; height: 14px; cursor: nesw-resize; }
+
+/* Visual indicator for SE corner */
+.edge-se::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--text-secondary, #484f58);
+    border-bottom: 2px solid var(--text-secondary, #484f58);
+    opacity: 0.3;
+    transition: opacity 0.15s ease;
+}
+.edge-se:hover::after { opacity: 0.7; }
+
+.desktop-window.maximized .window-edge { display: none; }
+
+/* ============ Taskbar ============ */
+
+.desktop-taskbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    background: rgba(13, 17, 23, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 1px solid rgba(48, 54, 61, 0.6);
+    padding: 0 8px;
+    gap: 4px;
+    animation: taskbarSlideUp 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.taskbar-start {
+    display: flex;
+    align-items: center;
+    padding-right: 4px;
+}
+
+.taskbar-start-btn {
+    width: 40px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-primary, #e6edf3);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s ease;
+}
+
+.taskbar-start-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.taskbar-start-btn .material-icons {
+    font-size: 22px;
+}
+
+.taskbar-apps {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.taskbar-apps::-webkit-scrollbar {
+    display: none;
+}
+
+.taskbar-app-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-family: inherit;
+    position: relative;
+}
+
+.taskbar-app-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent-color, #58a6ff);
+    transition: width 0.2s ease;
+}
+
+.taskbar-app-btn.active::after {
+    width: 20px;
+}
+
+.taskbar-app-btn.focused {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary, #e6edf3);
+}
+
+.taskbar-app-btn.focused::after {
+    width: 20px;
+}
+
+.taskbar-app-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary, #e6edf3);
+}
+
+.taskbar-app-btn .material-icons {
+    font-size: 18px;
+}
+
+.taskbar-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 8px;
+    margin-left: auto;
+}
+
+.taskbar-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.taskbar-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary, #e6edf3);
+}
+
+.taskbar-btn .material-icons {
+    font-size: 20px;
+}
+
+.taskbar-clock {
+    font-size: 12px;
+    color: var(--text-secondary, #8b949e);
+    min-width: 50px;
+    text-align: center;
+    padding: 0 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============ Window Animations ============ */
+
+@keyframes windowOpen {
+    from {
+        opacity: 0;
+        transform: scale(0.88);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes windowClose {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.88);
+    }
+}
+
+@keyframes windowMinimize {
+    from {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.5) translateY(40vh);
+    }
+}
+
+@keyframes taskbarSlideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* ============ Desktop Activation Transition ============ */
+
+body.desktop-entering .desktop-shell {
+    animation: desktopFadeIn 0.35s ease forwards;
+}
+
+body.desktop-leaving .app-layout {
+    animation: desktopFadeIn 0.35s ease forwards;
+}
+
+@keyframes desktopFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ============ Embed Mode ============ */
+
+body.embed-mode {
+    background: var(--bg-primary, #0d1117);
+    overflow: auto;
+}
+
+body.embed-mode .main-wrapper {
+    margin-left: 0;
+    padding-top: 0;
+}
+
+body.embed-mode .main-content {
+    padding: 16px;
+    max-width: 100%;
+}
+
+/* ============ Responsive ============ */
+
+@media (max-width: 1199px) {
+    .desktop-shell {
+        display: none !important;
+    }
+
+    body.desktop-active .app-layout {
+        display: flex !important;
+    }
+}

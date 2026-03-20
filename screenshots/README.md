@@ -13,10 +13,10 @@ For the README.md, please add the following screenshots:
    - Search functionality
 
 2. **devices-list.png** - Device management view showing:
-   - Complete device table with multiple entries
-   - Mix of online/offline devices
-   - Device notes
-   - Action buttons (connect, info, edit, delete)
+   - Horizontal folder chips bar (scrollable pills)
+   - Unified toolbar with search, segmented filters, column toggle
+   - Slim table with status dot, device ID, hostname, platform
+   - Kebab context menu (⋮) per row
 
 3. **device-details.png** - Device details modal showing:
    - Device ID
@@ -27,10 +27,11 @@ For the README.md, please add the following screenshots:
    - Created timestamp
    - Additional metadata
 
-4. **mobile-view.png** - Mobile responsive view showing:
-   - Adapted layout for mobile screens
-   - Hamburger menu (if applicable)
-   - Touch-friendly controls
+4. **mobile-view.png** - Mobile responsive view (≤600px) showing:
+   - Card-style device rows (CSS grid 2-column layout)
+   - Bottom sheet kebab menu with backdrop overlay
+   - Compact folder chips (icon-only at ≤400px)
+   - Touch-friendly controls with larger tap targets
 
 ## How to Create Screenshots
 

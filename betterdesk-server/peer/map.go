@@ -81,6 +81,22 @@ func (e *Entry) IsExpired(timeout time.Duration) bool {
 	return time.Since(e.LastReg) > timeout
 }
 
+// CloseConnections closes any open TCP or WebSocket connections held by this entry.
+// Safe to call multiple times; ignores nil connections and close errors.
+func (e *Entry) CloseConnections() {
+	if e.TCPConn != nil {
+		e.TCPConn.Close()
+		e.TCPConn = nil
+	}
+	if e.WSConn != nil {
+		// WSConn is interface{} — attempt to close if it implements io.Closer.
+		if closer, ok := e.WSConn.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+		e.WSConn = nil
+	}
+}
+
 // ComputeStatus computes the current status tier based on missed heartbeats.
 func (e *Entry) ComputeStatus(degradedThreshold, criticalThreshold int32) Status {
 	if e.MissedBeats >= criticalThreshold {
@@ -246,6 +262,7 @@ func (m *Map) UpdateHeartbeat(id string, addr *net.UDPAddr, serial int32) bool {
 }
 
 // Remove deletes a peer from the map. Returns the removed entry (nil if not found).
+// Closes any open TCP/WS connections to force immediate disconnect.
 func (m *Map) Remove(id string) *Entry {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -253,6 +270,7 @@ func (m *Map) Remove(id string) *Entry {
 	if !ok {
 		return nil
 	}
+	e.CloseConnections()
 	delete(m.entries, id)
 	return e
 }
@@ -322,6 +340,7 @@ func (m *Map) CleanExpired(timeout time.Duration) []string {
 	for id, e := range m.entries {
 		if time.Since(e.LastReg) > timeout {
 			expired = append(expired, id)
+			e.CloseConnections()
 			delete(m.entries, id)
 		}
 	}

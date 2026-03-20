@@ -195,6 +195,9 @@ func (pg *PostgresDB) Migrate() error {
 		`ALTER TABLE peers ADD COLUMN IF NOT EXISTS tags TEXT NOT NULL DEFAULT ''`,
 		// peers: heartbeat_seq (added in v2.3.0)
 		`ALTER TABLE peers ADD COLUMN IF NOT EXISTS heartbeat_seq BIGINT NOT NULL DEFAULT 0`,
+		// peers: CDAP device type and linked peer (added in v2.5.0)
+		`ALTER TABLE peers ADD COLUMN IF NOT EXISTS device_type TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE peers ADD COLUMN IF NOT EXISTS linked_peer_id TEXT NOT NULL DEFAULT ''`,
 	}
 
 	for _, ddl := range columnMigrations {
@@ -212,7 +215,8 @@ func (pg *PostgresDB) Migrate() error {
 const peerColumns = `id, uuid, pk, ip, "user", hostname, os, version,
 	status, nat_type, last_online, created_at,
 	disabled, banned, ban_reason, banned_at,
-	soft_deleted, deleted_at, note, tags, heartbeat_seq`
+	soft_deleted, deleted_at, note, tags, heartbeat_seq,
+	device_type, linked_peer_id`
 
 // scanPeer scans a row into a Peer struct using nullable types.
 func scanPeer(row pgx.Row) (*Peer, error) {
@@ -225,6 +229,7 @@ func scanPeer(row pgx.Row) (*Peer, error) {
 		&lastOnline, &p.CreatedAt, &p.Disabled, &p.Banned,
 		&p.BanReason, &bannedAt, &p.SoftDeleted, &deletedAt,
 		&p.Note, &p.Tags, &p.HeartbeatSeq,
+		&p.DeviceType, &p.LinkedPeerID,
 	)
 	if err != nil {
 		return nil, err
@@ -418,11 +423,11 @@ func (pg *PostgresDB) IsPeerSoftDeleted(id string) (bool, error) {
 	return deleted, err
 }
 
-// UpdatePeerFields updates specific peer fields (note, user, tags).
+// UpdatePeerFields updates specific peer fields (note, user, tags, device_type, linked_peer_id).
 // Only provided keys are updated; others are left unchanged.
-// Allowed keys: "note", "user", "tags".
+// Allowed keys: "note", "user", "tags", "device_type", "linked_peer_id".
 func (pg *PostgresDB) UpdatePeerFields(id string, fields map[string]string) error {
-	allowed := map[string]string{"note": "note", "user": `"user"`, "tags": "tags"}
+	allowed := map[string]string{"note": "note", "user": `"user"`, "tags": "tags", "device_type": "device_type", "linked_peer_id": "linked_peer_id"}
 	setClauses := []string{}
 	args := []interface{}{}
 	idx := 1
@@ -471,11 +476,13 @@ func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
 		INSERT INTO peers (id, uuid, pk, ip, "user", hostname, os, version,
 		                    status, nat_type, last_online, created_at,
 		                    disabled, banned, ban_reason, banned_at,
-		                    soft_deleted, deleted_at, note, tags, heartbeat_seq)
+		                    soft_deleted, deleted_at, note, tags, heartbeat_seq,
+		                    device_type, linked_peer_id)
 		SELECT $1, uuid, pk, ip, "user", hostname, os, version,
 		       status, nat_type, last_online, created_at,
 		       disabled, banned, ban_reason, banned_at,
-		       soft_deleted, deleted_at, note, tags, heartbeat_seq
+		       soft_deleted, deleted_at, note, tags, heartbeat_seq,
+		       device_type, linked_peer_id
 		FROM peers WHERE id = $2 FOR UPDATE`, newID, oldID)
 	if err != nil {
 		return fmt.Errorf("db: ChangePeerID insert: %w", err)
@@ -513,6 +520,29 @@ func (pg *PostgresDB) GetIDChangeHistory(id string) ([]*IDChangeHistory, error) 
 		history = append(history, h)
 	}
 	return history, rows.Err()
+}
+
+// GetLinkedPeers returns all non-deleted peers that have linked_peer_id matching the given ID.
+func (pg *PostgresDB) GetLinkedPeers(id string) ([]*Peer, error) {
+	rows, err := pg.pool.Query(pg.ctx, `
+		SELECT `+peerColumns+`
+		FROM peers
+		WHERE soft_deleted = FALSE AND linked_peer_id = $1
+		ORDER BY id`, id)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetLinkedPeers: %w", err)
+	}
+	defer rows.Close()
+
+	var peers []*Peer
+	for rows.Next() {
+		p, err := scanPeer(rows)
+		if err != nil {
+			return nil, fmt.Errorf("db: GetLinkedPeers scan: %w", err)
+		}
+		peers = append(peers, p)
+	}
+	return peers, rows.Err()
 }
 
 // ── Tags ──────────────────────────────────────────────────────────────

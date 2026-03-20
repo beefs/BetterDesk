@@ -122,6 +122,9 @@
     "delete_warning": "您即将永久删除此设备：",
     "delete_permanent": "此操作无法撤销。与该设备关联的所有数据将从数据库中永久删除。",
     "delete_success": "设备删除成功",
+    "revoke_option": "吊销设备（断开连接 + 阻止重新注册）",
+    "revoke_hint": "设备将被立即断开连接，并永久阻止重新连接到此服务器。",
+    "revoke_success": "设备已吊销并加入黑名单",
     "details": "设备详情",
     "ban_title": "封禁设备",
     "ban_confirm": "确定要封禁设备 {id} 吗？",
@@ -147,7 +150,14 @@
     "invalid_id": "设备 ID 无效（需要 6-16 个字符）",
     "invalid_id_format": "ID 格式无效（仅允许字母、数字、连字符和下划线）",
     "id_exists": "设备 ID 已存在",
-    "no_selection": "未选择任何设备"
+    "no_selection": "未选择任何设备",
+    "device_type": "类型",
+    "filter_type_all": "所有类型",
+    "filter_type_rustdesk": "RustDesk",
+    "filter_type_desktop": "桌面",
+    "filter_type_scada": "SCADA",
+    "filter_type_iot": "物联网",
+    "filter_type_agent": "代理"
   },
   "keys": {
     "title": "服务器密钥",
@@ -1060,5 +1070,37 @@
     "no_file": "未选择备份文件",
     "invalid_json": "无效的备份文件：不是有效的 JSON",
     "invalid_format": "无效的备份文件：不是 BetterDesk 备份"
+  },
+  "cdap": {
+    "device_detail": "CDAP 设备",
+    "loading": "加载中...",
+    "loading_widgets": "正在加载设备控件...",
+    "load_error": "无法加载设备数据",
+    "connected": "已连接",
+    "disconnected": "已断开",
+    "device_offline_msg": "设备当前处于离线状态。控件值可能已过时。",
+    "no_widgets": "没有可用的控件",
+    "no_widgets_desc": "此设备尚未注册包含控件定义的 CDAP 清单。",
+    "command_log": "命令日志",
+    "clear_log": "清除日志",
+    "confirm_command": "确认命令",
+    "select_option": "选择",
+    "cdap_status": "CDAP 状态",
+    "cdap_enabled": "CDAP 已启用",
+    "cdap_disabled": "CDAP 已禁用",
+    "cdap_devices": "CDAP 设备",
+    "cdap_connections": "活跃连接",
+    "send_command": "发送命令",
+    "command_sent": "命令发送成功",
+    "command_failed": "命令发送失败"
+  },
+  "desktop": {
+    "switch_mode": "桌面模式",
+    "console_mode": "控制台模式",
+    "loading": "加载中...",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "close": "关闭"
   }
 }
