@@ -44,17 +44,16 @@ RUN apk add --no-cache \
     && adduser -u "${UID}" -S -G betterdesk betterdesk
 
 # Copy application files FIRST, then overlay compiled node_modules.
-# This prevents local node_modules from overwriting Alpine/musl native modules.
-COPY web-nodejs/ .
-COPY --from=build /app/node_modules ./node_modules/
+# Use --chown here so we never chown -R the full tree (node_modules is huge on Docker Desktop).
+COPY --chown=betterdesk:betterdesk web-nodejs/ .
+COPY --chown=betterdesk:betterdesk --from=build /app/node_modules ./node_modules/
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chown=betterdesk:betterdesk docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Create data directories
+# Runtime dirs only (empty or tiny); /app and node_modules already owned via COPY --chown
 RUN mkdir -p /app/data /opt/rustdesk && \
-    chown -R betterdesk:betterdesk /app /opt/rustdesk
+    chown betterdesk:betterdesk /app/data /opt/rustdesk
 
 # Environment variables (defaults)
 ENV NODE_ENV=production
