@@ -849,6 +849,11 @@ const DeviceDetail = (function () {
     }
 
     async function _changeId() {
+        if (!device) return;
+        // Capture before await: Escape may close this panel first (handler order), nulling `device`.
+        const oldDeviceId = device.id;
+        if (!oldDeviceId) return;
+
         const newId = await Modal.prompt({
             title: _('devices.change_id_title'),
             label: _('devices.new_id'),
@@ -865,7 +870,7 @@ const DeviceDetail = (function () {
             return;
         }
         try {
-            await Utils.api('/api/devices/' + encodeURIComponent(device.id) + '/change-id', {
+            await Utils.api('/api/devices/' + encodeURIComponent(oldDeviceId) + '/change-id', {
                 method: 'POST',
                 body: { newId: newId.toUpperCase() }
             });
@@ -878,21 +883,23 @@ const DeviceDetail = (function () {
     }
 
     async function _toggleBan() {
+        if (!device) return;
+        const deviceId = device.id;
+        if (!deviceId) return;
         const isBanned = device.banned;
         const action = isBanned ? 'unban' : 'ban';
         const confirmed = await Modal.confirm({
             title: _('devices.' + action + '_title'),
-            message: _('devices.' + action + '_confirm', { id: device.id }),
+            message: _('devices.' + action + '_confirm', { id: deviceId }),
             confirmLabel: _(isBanned ? 'actions.unban' : 'actions.ban'),
             danger: !isBanned
         });
         if (!confirmed) return;
         try {
-            await Utils.api('/api/devices/' + encodeURIComponent(device.id) + '/' + action, { method: 'POST' });
+            await Utils.api('/api/devices/' + encodeURIComponent(deviceId) + '/' + action, { method: 'POST' });
             Notifications.success(_('devices.' + action + '_success'));
             // Refresh panel
-            const id = device.id;
-            device = await Utils.api('/api/devices/' + encodeURIComponent(id));
+            device = await Utils.api('/api/devices/' + encodeURIComponent(deviceId));
             _render();
             _switchTab('actions');
             _notifyChanged();
@@ -902,16 +909,19 @@ const DeviceDetail = (function () {
     }
 
     async function _deleteDevice() {
+        if (!device) return;
+        const deviceId = device.id;
+        if (!deviceId) return;
         const confirmed = await Modal.confirm({
             title: _('devices.delete_title'),
-            message: _('devices.delete_confirm', { id: device.id }),
+            message: _('devices.delete_confirm', { id: deviceId }),
             confirmLabel: _('actions.delete'),
             confirmIcon: 'delete',
             danger: true
         });
         if (!confirmed) return;
         try {
-            await Utils.api('/api/devices/' + encodeURIComponent(device.id), { method: 'DELETE' });
+            await Utils.api('/api/devices/' + encodeURIComponent(deviceId), { method: 'DELETE' });
             Notifications.success(_('devices.delete_success'));
             close();
             _notifyChanged();

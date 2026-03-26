@@ -135,6 +135,14 @@ class RDClient {
                 throw new Error(`Connection refused: ${rendezvousResponse.error}`);
             }
 
+            // PunchHoleResponse has no uuid field; force-relay returns SYMMETRIC + relay_server only.
+            // Native clients then send RequestRelay on the *same* hbbs connection so the signal
+            // server forwards the UUID to the target. We must do the same before hbbr, or hbbr
+            // rejects RequestRelay with empty UUID.
+            if (rendezvousResponse.relayServer && !rendezvousResponse.uuid) {
+                rendezvousResponse = await this._requestRelayOverRendezvous(rendezvousResponse);
+            }
+
             // Store peer's server-signed pk for SignedId verification (from RelayResponse.pk)
             this._peerSignedPk = rendezvousResponse.pk || null;
 
@@ -344,6 +352,66 @@ class RDClient {
             };
 
             this.conn.on('rendezvous:message', handler);
+        });
+    }
+
+    /**
+     * After PunchHoleResponse (relay path, no uuid), send RequestRelay on the rendezvous socket
+     * and wait for RelayResponse with the session UUID and signed PK — same as native clients.
+     * @param {Object} info - From _waitForRendezvousResponse ({ relayServer, pk, natType, ... })
+     * @returns {Promise<Object>} info with uuid, pk, relayServer filled for hbbr
+     */
+    _requestRelayOverRendezvous(info) {
+        const relayUUID = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `web-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+        this._emit('log', `Registering relay session (${relayUUID.substring(0, 8)}...) with signal server...`);
+        const req = this.proto.buildRequestRelay(
+            this.deviceId,
+            relayUUID,
+            info.relayServer || '',
+            this.opts.serverPubKey
+        );
+        const payload = this.proto.encodeRendezvous(req);
+
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.conn.off('rendezvous:message', handler);
+                reject(new Error('RequestRelay timeout (30s) — signal server did not respond'));
+            }, 30000);
+
+            const handler = (rawData) => {
+                const frames = this._rendezvousDecoder.feed(rawData);
+                for (const frame of frames) {
+                    try {
+                        const msg = this.proto.decodeRendezvous(frame);
+                        if (msg.keyExchange || msg.hc) {
+                            continue;
+                        }
+                        if (msg.relayResponse) {
+                            clearTimeout(timeout);
+                            this.conn.off('rendezvous:message', handler);
+                            const rr = msg.relayResponse;
+                            if (rr.refuseReason && rr.refuseReason.length > 0) {
+                                reject(new Error('Relay refused: ' + rr.refuseReason));
+                                return;
+                            }
+                            resolve({
+                                relayServer: rr.relayServer || info.relayServer || '',
+                                uuid: (rr.uuid && rr.uuid.length > 0) ? rr.uuid : relayUUID,
+                                pk: (rr.pk && rr.pk.length > 0) ? rr.pk : (info.pk || null),
+                                natType: info.natType
+                            });
+                            return;
+                        }
+                    } catch (err) {
+                        console.warn('[RDClient] _requestRelayOverRendezvous: bad frame, skipping:', err.message);
+                    }
+                }
+            };
+
+            this.conn.on('rendezvous:message', handler);
+            this.conn.sendRendezvous(payload);
         });
     }
 
