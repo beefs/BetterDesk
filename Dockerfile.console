@@ -26,6 +26,12 @@ LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk Console - Web Management Panel"
 LABEL version="2.4.0"
 
+# Match host uid/gid for bind-mounted volumes: docker compose build --build-arg UID=$(id -u) --build-arg GID=$(id -g)
+ARG UID=1000
+ARG GID=1000
+ENV BETTERDESK_UID=${UID}
+ENV BETTERDESK_GID=${GID}
+
 WORKDIR /app
 
 # Install runtime dependencies (retry for transient DNS failures)
@@ -34,8 +40,8 @@ RUN apk add --no-cache \
     curl \
     tini \
     || { sleep 2 && apk add --no-cache sqlite curl tini; } \
-    && addgroup -S betterdesk \
-    && adduser -S -G betterdesk betterdesk
+    && addgroup -g "${GID}" -S betterdesk \
+    && adduser -u "${UID}" -S -G betterdesk betterdesk
 
 # Copy application files FIRST, then overlay compiled node_modules.
 # This prevents local node_modules from overwriting Alpine/musl native modules.

@@ -26,6 +26,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        UID: ${BETTERDESK_UID:-1000}
+        GID: ${BETTERDESK_GID:-1000}
     image: betterdesk:local
     pull_policy: never
     container_name: betterdesk

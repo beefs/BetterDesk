@@ -4,6 +4,7 @@
 # into a single container using supervisord as process manager.
 #
 # Build:  docker build -t betterdesk:local .
+#         docker build --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t betterdesk:local .
 # Run:    docker compose up -d
 #
 # Ports:
@@ -54,6 +55,12 @@ LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk — All-in-One (Go Server + Node.js Console)"
 LABEL version="2.4.0"
 
+# Non-root app user: match host uid/gid for bind-mounted volumes (override at build time).
+ARG UID=1000
+ARG GID=1000
+ENV BETTERDESK_UID=${UID}
+ENV BETTERDESK_GID=${GID}
+
 # Install runtime packages (retry for transient DNS failures)
 RUN apk add --no-cache \
     ca-certificates \
@@ -71,8 +78,8 @@ RUN apk add --no-cache \
     && mkdir -p /var/log/supervisor; }
 
 # Create betterdesk user and directories
-RUN addgroup -S betterdesk && \
-    adduser -S -G betterdesk betterdesk && \
+RUN addgroup -g "${GID}" -S betterdesk && \
+    adduser -u "${UID}" -S -G betterdesk betterdesk && \
     mkdir -p /opt/rustdesk /app/data /var/log/betterdesk && \
     chown -R betterdesk:betterdesk /opt/rustdesk /app/data /var/log/betterdesk
 
@@ -109,7 +116,8 @@ ENV SERVER_BACKEND=betterdesk
 ENV HBBS_API_URL=http://127.0.0.1:21114/api
 ENV BETTERDESK_API_URL=http://127.0.0.1:21114/api
 ENV DOCKER=true
-ENV ENCRYPTED_ONLY=1\nENV RELAY_SERVERS=
+ENV ENCRYPTED_ONLY=1
+ENV RELAY_SERVERS=
 
 # Expose all ports
 EXPOSE 5000 21114 21115 21116/tcp 21116/udp 21117 21118 21119 21121

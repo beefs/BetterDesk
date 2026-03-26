@@ -20,6 +20,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.server
+      args:
+        UID: ${BETTERDESK_UID:-1000}
+        GID: ${BETTERDESK_GID:-1000}
     image: betterdesk-server:local
     pull_policy: never
     container_name: betterdesk-server
@@ -53,6 +56,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.console
+      args:
+        UID: ${BETTERDESK_UID:-1000}
+        GID: ${BETTERDESK_GID:-1000}
     image: betterdesk-console:local
     pull_policy: never
     container_name: betterdesk-console

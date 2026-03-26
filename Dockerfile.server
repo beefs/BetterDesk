@@ -34,6 +34,12 @@ LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk Server - RustDesk-compatible signal + relay"
 LABEL version="2.4.0"
 
+# Match host uid/gid for bind-mounted volumes: docker compose build --build-arg UID=$(id -u) --build-arg GID=$(id -g)
+ARG UID=1000
+ARG GID=1000
+ENV BETTERDESK_UID=${UID}
+ENV BETTERDESK_GID=${GID}
+
 RUN apk add --no-cache \
     ca-certificates \
     curl \
@@ -41,8 +47,8 @@ RUN apk add --no-cache \
     tini \
     || { sleep 2 && apk add --no-cache \
     ca-certificates curl sqlite tini; } \
-    && addgroup -S betterdesk \
-    && adduser -S -G betterdesk betterdesk
+    && addgroup -g "${GID}" -S betterdesk \
+    && adduser -u "${UID}" -S -G betterdesk betterdesk
 
 COPY --from=builder /betterdesk-server /usr/local/bin/betterdesk-server
 RUN chmod +x /usr/local/bin/betterdesk-server

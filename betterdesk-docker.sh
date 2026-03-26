@@ -32,6 +32,11 @@ DATA_DIR="${DATA_DIR:-}"
 BACKUP_DIR="${BACKUP_DIR:-/opt/betterdesk-backups}"
 COMPOSE_FILE="${COMPOSE_FILE:-$SCRIPT_DIR/docker-compose.yml}"
 
+# Docker image user ids — must match host ownership of bind-mounted DATA_DIR (override before build/install)
+BETTERDESK_UID="${BETTERDESK_UID:-1000}"
+BETTERDESK_GID="${BETTERDESK_GID:-1000}"
+export BETTERDESK_UID BETTERDESK_GID
+
 # Database configuration
 USE_POSTGRESQL="${USE_POSTGRESQL:-false}"
 DB_TYPE="${DB_TYPE:-sqlite}"
@@ -102,6 +107,16 @@ create_data_directory() {
     fi
     
     return 0
+}
+
+# When running as root, align host data dir ownership with image user (bind mount permissions)
+ensure_data_dir_ownership() {
+    local dir="${1:-$DATA_DIR}"
+    [ -z "$dir" ] || [ ! -d "$dir" ] && return 0
+    if [ "${EUID:-0}" -eq 0 ]; then
+        chown -R "${BETTERDESK_UID}:${BETTERDESK_GID}" "$dir" 2>/dev/null || true
+        log "Ownership: $dir → ${BETTERDESK_UID}:${BETTERDESK_GID}"
+    fi
 }
 
 #===============================================================================
@@ -621,6 +636,9 @@ EOF
         build:
             context: .
             dockerfile: Dockerfile.server
+            args:
+                UID: \${BETTERDESK_UID:-1000}
+                GID: \${BETTERDESK_GID:-1000}
         pull_policy: never
         ports:
             - "21114:21114"
@@ -662,6 +680,9 @@ EOF
         build:
             context: .
             dockerfile: Dockerfile.console
+            args:
+                UID: \${BETTERDESK_UID:-1000}
+                GID: \${BETTERDESK_GID:-1000}
         pull_policy: never
         ports:
             - "5000:5000"
@@ -901,6 +922,7 @@ do_install() {
         press_enter
         return
     }
+    ensure_data_dir_ownership "$DATA_DIR"
     create_data_directory "$BACKUP_DIR" || true
     
     # Always recreate compose file to include database configuration
@@ -1216,7 +1238,7 @@ do_backup_silent() {
     # Backup data directory
     if [ -d "$DATA_DIR" ]; then
         cp -r "$DATA_DIR"/* "$backup_path/" 2>/dev/null || true
-        print_info "  - Dane ($DATA_DIR)"
+        print_info "  - Data ($DATA_DIR)"
     fi
     
     # Backup compose file
@@ -1283,7 +1305,6 @@ do_reset_password() {
             ;;
     esac
     
-    # Update password using reset-password.js (supports both SQLite and PostgreSQL)
     # Update password using reset-password.js (supports both SQLite and PostgreSQL)
     # Arguments: <password> [username] — password first, then optional username
     docker exec "$CONSOLE_CONTAINER" node /app/scripts/reset-password.js "$new_password" admin 2>/dev/null || {
@@ -2022,6 +2043,7 @@ do_migrate() {
         print_info "  # Or: sudo chcon -Rt svirt_sandbox_file_t $DATA_DIR"
         return
     }
+    ensure_data_dir_ownership "$DATA_DIR"
     create_data_directory "$BACKUP_DIR" || true
     
     # Copy key files
