@@ -55,7 +55,8 @@ services:
       - "5000:5000"             # Web console
       - "21121:21121"           # RustDesk Client API (WAN)
     volumes:
-      - betterdesk-data:/opt/rustdesk:ro
+      # Must be read-write: console writes to shared db_v2.sqlite3 (see docker-compose.yml)
+      - betterdesk-data:/opt/rustdesk
       - console-data:/app/data
     environment:
       - NODE_ENV=production

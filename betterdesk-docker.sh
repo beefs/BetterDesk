@@ -119,6 +119,101 @@ ensure_data_dir_ownership() {
     fi
 }
 
+# Octal permission digit includes write (2,3,6,7)
+_oct_has_write_bit() {
+    case "$1" in
+        2|3|6|7) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Stat-based: can UID/GID write to this path? Prints nothing. Returns: 0=yes, 1=no, 2=world-writable only (insecure but works)
+_path_writable_stat_result() {
+    local path="$1" tuid="$2" tgid="$3"
+    local owner_u owner_g mode um gm om
+
+    [ -e "$path" ] || return 1
+    owner_u=$(stat -c '%u' "$path" 2>/dev/null) || return 1
+    owner_g=$(stat -c '%g' "$path" 2>/dev/null) || return 1
+    mode=$(stat -c '%a' "$path" 2>/dev/null) || return 1
+    # Use last 3 octal digits (handles 0755 / 1755)
+    if [ ${#mode} -gt 3 ]; then
+        mode="${mode: -3}"
+    fi
+    um=${mode:0:1}
+    gm=${mode:1:1}
+    om=${mode:2:1}
+
+    if [ "$owner_u" = "$tuid" ] && _oct_has_write_bit "$um"; then
+        return 0
+    fi
+    if [ "$owner_g" = "$tgid" ] && _oct_has_write_bit "$gm"; then
+        return 0
+    fi
+    if _oct_has_write_bit "$om"; then
+        return 2
+    fi
+    return 1
+}
+
+# True if bind-mounted DATA_DIR is writable by container user BETTERDESK_UID:BETTERDESK_GID (no output)
+data_dir_permissions_ok() {
+    local dir="$1"
+    [ -n "$dir" ] && [ -d "$dir" ] || return 1
+
+    if [ "${EUID:-0}" -eq 0 ] && command -v runuser >/dev/null 2>&1; then
+        if runuser -u "#${BETTERDESK_UID}" -- test -w "$dir" 2>/dev/null; then
+            return 0
+        fi
+        # Fall through to stat if runuser test fails (e.g. unusual mounts)
+    fi
+
+    case "$(_path_writable_stat_result "$dir" "$BETTERDESK_UID" "$BETTERDESK_GID")" in
+        0|2) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Verifies host path permissions for Docker bind mount; prints hints on failure
+verify_data_dir_permissions_for_container_user() {
+    local dir="${1:-$DATA_DIR}"
+    local st
+
+    if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+        print_error "Data path is missing or not a directory: $dir"
+        return 1
+    fi
+
+    if data_dir_permissions_ok "$dir"; then
+        st=$(_path_writable_stat_result "$dir" "$BETTERDESK_UID" "$BETTERDESK_GID")
+        if [ "$st" = "2" ]; then
+            print_warning "Data directory is writable for others (world-writable). Consider: chmod o-w \"$dir\""
+        fi
+        log "Permission OK for UID ${BETTERDESK_UID} on $dir"
+        return 0
+    fi
+
+    print_error "Data directory is not writable by container user UID ${BETTERDESK_UID} (GID ${BETTERDESK_GID}): $dir"
+    print_info "Fix ownership: sudo chown -R ${BETTERDESK_UID}:${BETTERDESK_GID} \"$dir\""
+    print_info "Match image build: export BETTERDESK_UID=${BETTERDESK_UID} BETTERDESK_GID=${BETTERDESK_GID} before build"
+    log "Permission denied for UID ${BETTERDESK_UID} on $dir"
+    return 1
+}
+
+# Backup folder must be writable by the user running this script (host copies)
+verify_backup_dir_writable() {
+    local dir="${1:-$BACKUP_DIR}"
+    [ -z "$dir" ] && return 0
+    [ ! -d "$dir" ] && return 0
+    if [ ! -w "$dir" ] || [ ! -x "$dir" ]; then
+        print_warning "Backup directory is not writable or not traversable: $dir"
+        print_info "Fix: sudo chown \"\$(whoami)\" \"$dir\" && chmod u+rwx \"$dir\""
+        log "Backup dir not writable: $dir"
+        return 1
+    fi
+    return 0
+}
+
 #===============================================================================
 # Helper Functions
 #===============================================================================
@@ -688,7 +783,7 @@ EOF
             - "5000:5000"
             - "21121:21121"
         volumes:
-            - $DATA_DIR:/opt/rustdesk:ro
+            - $DATA_DIR:/opt/rustdesk
             - console_data:/app/data
         environment:
             - NODE_ENV=production
@@ -923,7 +1018,13 @@ do_install() {
         return
     }
     ensure_data_dir_ownership "$DATA_DIR"
+    print_step "Checking data directory permissions for container user (UID ${BETTERDESK_UID}:${BETTERDESK_GID})..."
+    if ! verify_data_dir_permissions_for_container_user "$DATA_DIR"; then
+        press_enter
+        return
+    fi
     create_data_directory "$BACKUP_DIR" || true
+    verify_backup_dir_writable "$BACKUP_DIR" || true
     
     # Always recreate compose file to include database configuration
     create_compose_file
@@ -1169,6 +1270,27 @@ do_validate() {
         echo -e "${GREEN}✓ Exists${NC}"
     else
         echo -e "${RED}✗ Not found${NC}"
+        errors=$((errors + 1))
+    fi
+    
+    echo -n "  Data dir (UID ${BETTERDESK_UID}): "
+    if [ ! -d "$DATA_DIR" ]; then
+        echo -e "${YELLOW}! Skipped (no directory)${NC}"
+    elif data_dir_permissions_ok "$DATA_DIR"; then
+        echo -e "${GREEN}✓ Writable by container user${NC}"
+    else
+        echo -e "${RED}✗ Not writable by container user${NC}"
+        errors=$((errors + 1))
+    fi
+    
+    echo -n "  Backup directory: "
+    if [ ! -d "$BACKUP_DIR" ]; then
+        echo -e "${YELLOW}! Missing${NC}"
+        warnings=$((warnings + 1))
+    elif [ -w "$BACKUP_DIR" ] && [ -x "$BACKUP_DIR" ]; then
+        echo -e "${GREEN}✓ Writable${NC}"
+    else
+        echo -e "${RED}✗ Not writable${NC}"
         errors=$((errors + 1))
     fi
     
@@ -2044,7 +2166,13 @@ do_migrate() {
         return
     }
     ensure_data_dir_ownership "$DATA_DIR"
+    print_step "Checking data directory permissions for container user (UID ${BETTERDESK_UID}:${BETTERDESK_GID})..."
+    if ! verify_data_dir_permissions_for_container_user "$DATA_DIR"; then
+        press_enter
+        return
+    fi
     create_data_directory "$BACKUP_DIR" || true
+    verify_backup_dir_writable "$BACKUP_DIR" || true
     
     # Copy key files
     if [ -n "$EXISTING_DATA_DIR" ] && [ "$EXISTING_DATA_DIR" != "$DATA_DIR" ]; then
