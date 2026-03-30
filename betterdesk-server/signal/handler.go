@@ -977,6 +977,8 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr)
 		}
 		// Store the UUID so we can recover it if target responds with empty UUID.
 		s.storePendingUUID(targetID, relayUUID)
+		initiatorKey := normalizeAddrKey(raddr.String())
+		s.storePendingRelayByInitiator(initiatorKey, relayUUID, targetID)
 		s.sendUDP(reqRelay, target.UDPAddr)
 		log.Printf("[signal] RequestRelay (TCP): forwarded to %s secure=%v connType=%v", targetID, msg.Secure, msg.ConnType)
 	}
@@ -1038,6 +1040,19 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 
 	// Look up the target peer to get its public key and sign it (matching Rust's get_pk).
 	targetID := rr.GetId()
+
+	// Prefer initiator-keyed pending relay (TCP RequestRelay): disambiguates when
+	// several peers share one public IP and FindByIP(sender) would be wrong.
+	if pend := s.getPendingRelayByInitiator(addrStr); pend != nil {
+		if rr.Uuid == "" && pend.uuid != "" {
+			rr.Uuid = pend.uuid
+			log.Printf("[signal] RelayResponse from %s has empty UUID — recovered original %s from initiator pending store", senderAddr, pend.uuid[:8])
+		}
+		if targetID == "" && pend.targetID != "" {
+			targetID = pend.targetID
+			log.Printf("[signal] RelayResponse forward: resolved target to %s via initiator pending store", targetID)
+		}
+	}
 
 	// Fallback: if id field is empty (common with some RustDesk client versions),
 	// identify the sender by their IP address in the peer map.

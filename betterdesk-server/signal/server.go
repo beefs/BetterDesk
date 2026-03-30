@@ -47,6 +47,16 @@ type pendingUUID struct {
 	createdAt time.Time
 }
 
+// pendingRelayInitiator correlates a TCP RequestRelay with the target's
+// RelayResponse when socket_addr decodes to the initiator. Keyed by normalized
+// initiator address so UUID/targetID recovery works when FindByIP(sender)
+// returns the wrong peer (multiple peers sharing one public IP).
+type pendingRelayInitiator struct {
+	uuid      string
+	targetID  string
+	createdAt time.Time
+}
+
 // writeProto sends a protobuf message, using encryption if the connection is secure.
 func (pc *tcpPunchConn) writeProto(msg *pb.RendezvousMessage) error {
 	pc.writeMu.Lock()
@@ -85,6 +95,11 @@ type Server struct {
 	// an empty UUID in RelayResponse — this map lets us recover the original UUID
 	// so relay pairing succeeds. Key=targetID, Value=*pendingUUID.
 	pendingRelayUUIDs sync.Map // map[string]*pendingUUID
+
+	// pendingRelayByInitiator indexes the same relay session by initiator address
+	// (normalized ip:port). Used when RelayResponse has empty id/uuid and
+	// FindByIP(sender) would pick the wrong peer on a shared NAT IP.
+	pendingRelayByInitiator sync.Map // map[string]*pendingRelayInitiator
 
 	// localIP is the server's detected public IP address (via external service).
 	// Used to build the relay server address when -relay-servers is not set.
@@ -784,6 +799,19 @@ func (s *Server) cleanupTCPPunchConns() {
 			if uuidEvicted > 0 {
 				log.Printf("[signal] Pending relay UUIDs cleanup: evicted %d stale entries", uuidEvicted)
 			}
+
+			initEvicted := 0
+			s.pendingRelayByInitiator.Range(func(key, value any) bool {
+				p := value.(*pendingRelayInitiator)
+				if now.Sub(p.createdAt) > maxTTL {
+					s.pendingRelayByInitiator.Delete(key)
+					initEvicted++
+				}
+				return true
+			})
+			if initEvicted > 0 {
+				log.Printf("[signal] Pending relay by initiator cleanup: evicted %d stale entries", initEvicted)
+			}
 		}
 	}
 }
@@ -818,6 +846,25 @@ func (s *Server) getPendingUUID(targetID string) string {
 		return val.(*pendingUUID).uuid
 	}
 	return ""
+}
+
+// storePendingRelayByInitiator records relay UUID and target ID for a TCP
+// RequestRelay so handleRelayResponseForward can recover them from
+// RelayResponse.SocketAddr when id/uuid are empty.
+func (s *Server) storePendingRelayByInitiator(initiatorKey, relayUUID, targetID string) {
+	s.pendingRelayByInitiator.Store(initiatorKey, &pendingRelayInitiator{
+		uuid:      relayUUID,
+		targetID:  targetID,
+		createdAt: time.Now(),
+	})
+}
+
+// getPendingRelayByInitiator returns pending relay data for the initiator key, or nil.
+func (s *Server) getPendingRelayByInitiator(initiatorKey string) *pendingRelayInitiator {
+	if val, ok := s.pendingRelayByInitiator.Load(initiatorKey); ok {
+		return val.(*pendingRelayInitiator)
+	}
+	return nil
 }
 
 // isNormalClose returns true if the error represents a normal connection close
